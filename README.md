@@ -1,2 +1,3 @@
-# constr-dot-calculus
- DOT calculus enhanced with constraints.
+# DOT Calculus with Constraints
+ Soundness proof for DOT calculus enhanced with constraints.
+

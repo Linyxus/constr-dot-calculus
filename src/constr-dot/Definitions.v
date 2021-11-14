@@ -154,6 +154,7 @@ Definition open_rec_avar (k: nat) (u: var) (a: avar) : avar :=
   | avar_f x => avar_f x
   end.
 
+
 Fixpoint open_rec_typ (k: nat) (u: var) (T: typ): typ :=
   match T with
   | typ_top        => typ_top

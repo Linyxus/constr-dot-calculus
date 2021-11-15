@@ -11,16 +11,80 @@ Require Import String.
 
 Require Import Definitions RecordAndInertTypes Decompose.
 
+(** * Abstract Syntax for Constraint Language *)
 
+(** ** Type and Term with constraint-bound variables *)
+
+(** *** Variables
+    The variables can either be bound by the core calculus (∀, let),
+    or by the constraint (∃ X. C).  *)
+Inductive cvar : Set :=
+  | cvar_avar : avar -> cvar
+  | cvar_cvar : nat -> cvar.
+
+(** *** Type with type variables
+    All constructors are the same as those in [typ], except for one additional
+    constructor for type variables.
+    [ctyp_tvar] represents the reference to a type variable bound by
+    the constraint (∃t), represented by de Bruijn indices.  *)
 Inductive ctyp : Set :=
-  | ctyp_tvar_b : nat -> ctyp
-  | ctyp_typ : typ -> ctyp.
+  | ctyp_top  : ctyp
+  | ctyp_bot  : ctyp
+  | ctyp_tvar : nat -> ctyp
+  | ctyp_typ : typ -> ctyp
+  | ctyp_rcd  : cdec -> ctyp
+  | ctyp_and  : ctyp -> ctyp -> ctyp
+  | ctyp_sel  : cvar -> typ_label -> ctyp
+  | ctyp_bnd  : ctyp -> ctyp
+  | ctyp_all  : ctyp -> ctyp -> ctyp
+with cdec : Set :=
+  | cdec_typ  : typ_label -> ctyp -> ctyp -> cdec
+  | cdec_trm  : trm_label -> ctyp -> cdec.
+
+Scheme ctyp_mut := Induction for ctyp Sort Prop
+with   cdec_mut := Induction for cdec Sort Prop.
+Combined Scheme ctyp_mutind from ctyp_mut, cdec_mut.
+
+Coercion ctyp_typ : typ >-> ctyp.
+
+Inductive ctyp_closed : ctyp -> typ -> Prop :=
+| ctyp_top_closed : ctyp_closed ctyp_top typ_top
+| ctyp_bot_closed : ctyp_closed ctyp_bot typ_bot
+| ctyp_typ_closed : forall T,
+    ctyp_closed (ctyp_typ T) T
+| ctyp_rcd_closed : forall D D',
+    cdec_closed D D' ->
+    ctyp_closed (ctyp_rcd D) (typ_rcd D')
+| ctyp_and_closed : forall T T' U U',
+    ctyp_closed T T' ->
+    ctyp_closed U U' ->
+    ctyp_closed (ctyp_and T U) (typ_and T' U')
+| ctyp_sel_closed : forall x T,
+    ctyp_closed (ctyp_sel (cvar_avar x) T) (typ_sel x T)
+| ctyp_bnd_closed : forall T T',
+    ctyp_closed T T' -> ctyp_closed (ctyp_bnd T) (typ_bnd T')
+| ctyp_all_closed : forall S S' T T',
+    ctyp_closed S S' ->
+    ctyp_closed T T' ->
+    ctyp_closed (ctyp_all S T) (typ_all S' T')
+with cdec_closed : cdec -> dec -> Prop :=
+| cdec_typ_closed : forall A S S' T T',
+    ctyp_closed S S' ->
+    ctyp_closed T T' ->
+    cdec_closed (cdec_typ A S T) (dec_typ A S' T')
+| cdec_trm_closed : forall a T T',
+    ctyp_closed T T' ->
+    cdec_closed (cdec_trm a T) (dec_trm a T')
+.
+
+Scheme ctyp_closed_mut    := Induction for ctyp_closed Sort Prop
+with   cdec_closed_mut    := Induction for cdec_closed Sort Prop.
+Combined Scheme ctyp_closed_mutind from ctyp_closed_mut, cdec_closed_mut.
 
 Inductive ctrm : Set :=
   | ctrm_var_b : nat -> ctrm
   | ctrm_trm : trm -> ctrm.
 
-Coercion ctyp_typ : typ >-> ctyp.
 Coercion ctrm_trm : trm >-> ctrm.
 
 Inductive constr : Set :=
@@ -36,33 +100,40 @@ Inductive constr : Set :=
 
 (** - true constraint *)
 Notation "⊤" := constr_true.
-
 (** - false constraint *)
 Notation "⊥" := constr_false.
-
 (** - and constraint *)
 Notation "C '⋏' D" := (constr_and C D) (at level 30).
-
 (** - or constraint *)
 Notation "C '⋎' D" := (constr_or C D) (at level 30).
-
 (** - type existence constraint *)
 Notation "'∃t' C" := (constr_exists_typ C) (at level 30).
-
 (** - variable existence constraint *)
 Notation "'∃v' C" := (constr_exists_var C) (at level 30).
-
 (** - typing constraint *)
 Notation "x '⦂' T" := (constr_typ x T) (at level 29).
-
 (** - subtyping constraint *)
 Notation "S '<⦂' T" := (constr_sub S T) (at level 29).
 
 
-Definition open_rec_ctyp (k : nat) (S : typ) (T : ctyp) : ctyp :=
+(** ** Opening *)
+
+Fixpoint open_rec_ctyp (k : nat) (t : typ) (T : ctyp) : ctyp :=
   match T with
-  | ctyp_tvar_b i => If k = i then ctyp_typ S else ctyp_tvar_b i
-  | ctyp_typ T0 => ctyp_typ T0
+  | ctyp_top => ctyp_top
+  | ctyp_bot => ctyp_bot
+  | ctyp_tvar i => If k = i then ctyp_typ t else ctyp_tvar i
+  | ctyp_typ u => ctyp_typ u
+  | ctyp_rcd D => ctyp_rcd (open_rec_cdec k t D)
+  | ctyp_and T U => ctyp_and (open_rec_ctyp k t T) (open_rec_ctyp k t U)
+  | ctyp_sel x T => ctyp_sel x T
+  | ctyp_bnd T => ctyp_bnd (open_rec_ctyp k t T)
+  | ctyp_all T U => ctyp_all (open_rec_ctyp k t T) (open_rec_ctyp k t U)
+  end
+with open_rec_cdec (k : nat) (t : typ) (D : cdec) : cdec :=
+  match D with
+  | cdec_typ A T U => cdec_typ A (open_rec_ctyp k t T) (open_rec_ctyp k t U)
+  | cdec_trm a T => cdec_trm a (open_rec_ctyp k t T)
   end.
 
 Definition open_rec_ctrm (k : nat) (u : var) (t : ctrm) : ctrm :=
@@ -95,15 +166,77 @@ Fixpoint open_rec_constr_var (k : nat) (u : var) (C : constr) : constr :=
   | constr_typ t T0 => constr_typ (open_rec_ctrm k u t) T0
   end.
 
-
 Definition open_ctyp (S : typ) (T : ctyp) : ctyp := open_rec_ctyp 0 S T.
+Definition open_cdec (S : typ) (D : cdec) : cdec := open_rec_cdec 0 S D.
 Definition open_constr_typ (T : typ) (C : constr) : constr := open_rec_constr_typ 0 T C.
 
+(** ** Lemmas on openning and closed types *)
+
+Lemma open_closed_ctyp_unchanged : forall S T T',
+    ctyp_closed T T' ->
+    open_ctyp S T = T
+with open_closed_cdec_unchanged : forall S D D',
+    cdec_closed D D' ->
+    open_cdec S D = D.
+Proof.
+  - introv Hc. induction Hc.
+    -- auto.
+    -- auto.
+    -- auto.
+    -- assert (open_cdec S D = D) as Heq.
+       {
+         apply* open_closed_cdec_unchanged.
+       }
+       replace (open_ctyp S (ctyp_rcd D)) with (ctyp_rcd (open_rec_cdec 0 S D)).
+       {
+         unfold open_cdec in Heq. rewrite -> Heq. trivial.
+       }
+       reflexivity.
+    -- replace (open_ctyp S (ctyp_and T U)) with (ctyp_and (open_rec_ctyp 0 S T) (open_rec_ctyp 0 S U)).
+       {
+         unfold open_ctyp in IHHc1. rewrite -> IHHc1.
+         unfold open_ctyp in IHHc2. rewrite -> IHHc2. trivial.
+       }
+       reflexivity.
+     -- reflexivity.
+     -- replace (open_ctyp S (ctyp_bnd T)) with (ctyp_bnd (open_rec_ctyp 0 S T)).
+        {
+          unfold open_ctyp in IHHc. rewrite -> IHHc. auto.
+        } auto.
+     -- replace (open_ctyp S (ctyp_all S0 T)) with (ctyp_all (open_rec_ctyp 0 S S0) (open_rec_ctyp 0 S T)).
+        {
+          unfold open_ctyp in IHHc1. rewrite -> IHHc1.
+          unfold open_ctyp in IHHc2. rewrite -> IHHc2. trivial.
+        }
+        auto.
+  - introv Hc. induction Hc.
+    -- unfold open_cdec. simpl.
+       assert (open_ctyp S S0 = S0).
+       {
+         apply* open_closed_ctyp_unchanged.
+       }
+       assert (open_ctyp S T = T).
+       {
+         apply* open_closed_ctyp_unchanged.
+       }
+       unfold open_ctyp in H1, H2. rewrite -> H1, H2. auto.
+    -- unfold open_cdec. simpl.
+       assert (open_ctyp S T = T); try apply* open_closed_ctyp_unchanged.
+       unfold open_ctyp in H0; rewrite H0; reflexivity.
+Qed.
+
+Definition is_closed_ctyp (T : ctyp) := exists T', ctyp_closed T T'.
+
+Lemma open_closed_ctyp_unchanged' : forall S T,
+    is_closed_ctyp T ->
+    open_ctyp S T = T.
+Proof.
+  introv [T' Hc]. apply* open_closed_ctyp_unchanged.
+Qed.
 
 Inductive ctyp_lc : ctyp -> Prop :=
 | ctyp_typ_lc : forall T, ctyp_lc (ctyp_typ T)
 .
-
 
 Inductive constr_lc : constr -> Prop :=
 | constr_true_lc: constr_lc ⊤
@@ -177,7 +310,6 @@ Definition constr_entail (C1 C2 : constr) :=
     inert G ->
     satisfy_constr G C1 -> satisfy_constr G C2.
 
-
 Notation "C '⊩' D" := (constr_entail C D) (at level 50).
 
 Ltac introe := introv H0 H.
@@ -219,18 +351,18 @@ Proof. introe. inversion H; subst. eauto. Qed.
     ∃ U. (S <: U ⋏ U <: T) ⊩ S <: T
  *)
 Theorem ent_sub_trans : forall S T,
-    ctyp_lc S -> ctyp_lc T ->
-    ∃t (S <⦂ (ctyp_tvar_b 0) ⋏ (ctyp_tvar_b 0) <⦂ T) ⊩ S <⦂ T.
+    is_closed_ctyp S -> is_closed_ctyp T ->
+    ∃t (S <⦂ (ctyp_tvar 0) ⋏ (ctyp_tvar 0) <⦂ T) ⊩ S <⦂ T.
 Proof.
   introv Hs Ht.
   introe. inversion H; subst.
   unfold open_constr_typ in H3. simpl in H3.
   case_if. clear C.
-  pose proof (lc_ctyp_open_unchanged T0 Hs) as Hsu.
+  pose proof (open_closed_ctyp_unchanged' T0 Hs) as Hsu.
   unfold open_ctyp in Hsu. rewrite -> Hsu in H3.
-  pose proof (lc_ctyp_open_unchanged T0 Ht) as Hst.
-  unfold open_ctyp in Hst. rewrite -> Hst in H3.
-  clear Hsu Hst.
+  pose proof (open_closed_ctyp_unchanged' T0 Ht) as Htu.
+  unfold open_ctyp in Htu. rewrite -> Htu in H3.
+  clear Hsu Htu.
   inversion H3; subst. clear H3.
   inversion H5; clear H5; subst.
   inversion H6; clear H6; subst.

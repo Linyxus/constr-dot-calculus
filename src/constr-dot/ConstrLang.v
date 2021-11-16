@@ -537,11 +537,16 @@ Proof.
   introe. inversion H.
 Qed.
 
-
 (** ∀ C, C ⊩ ⊤ *)
 Theorem ent_tautology : forall C,
     C ⊩ ⊤.
 Proof. introe. eauto. Qed.
+
+Lemma ent_refl : forall C,
+    C ⊩ C.
+Proof.
+  introe. auto.
+Qed.
 
 (** If C1 ⊩ C2 and C2 ⊩ C3, then C1 ⊩ C3. *)
 Theorem ent_trans : forall C1 C2 C3,
@@ -564,6 +569,10 @@ Qed.
 
 Theorem ent_and_left : forall C D,
     C ⋏ D ⊩ C.
+Proof. introe. inversion H; subst. eauto. Qed.
+
+Theorem ent_and_right : forall C D,
+    C ⋏ D ⊩ D.
 Proof. introe. inversion H; subst. eauto. Qed.
 
 (** If U is fresh for S and T, then

@@ -484,8 +484,10 @@ Ltac inv_sat_all := repeat inv_sat.
 
 Ltac inv_closed :=
   match goal with
-  | H : ctyp_closed _ _ |- _ => idtac H; inversion H; subst; clear H
-  | H : ctrm_closed _ _ |- _ => idtac H; inversion H; subst; clear H
+  | H : ctyp_closed (_ _) _ |- _ => idtac H; inversion H; subst; clear H
+  | H : ctyp_closed (_ _ _) _ |- _ => idtac H; inversion H; subst; clear H
+  | H : ctrm_closed (_ _) _ |- _ => idtac H; inversion H; subst; clear H
+  | H : ctrm_closed (_ _ _) _ |- _ => idtac H; inversion H; subst; clear H
   end.
 
 Ltac inv_closed_all := repeat inv_closed.
@@ -639,9 +641,12 @@ Theorem ent_sub_and_rcd_or : forall U1 U2 A S T,
 Proof.
   introv. introe.
   inv_sat. inv_closed_all.
-  apply invert_subtyp_and1_rcd in H6 as [H6 | H6]; try assumption;
-    try (apply sat_or1; solve_trivial_sub);
-    try (apply sat_or2; solve_trivial_sub).
+  match goal with
+  | H : G ⊢ _ <: _ |- _ =>
+    apply invert_subtyp_and1_rcd in H as [?H1 | ?H2]; try assumption;
+      try (apply sat_or1; solve_trivial_sub);
+      try (apply sat_or2; solve_trivial_sub)
+  end.
 Qed.
 
 (** {A: S1..T1} <: {A: S2..T2} ⊩ S2 <: S1 ⋏ T1 <: T2 *)
@@ -650,7 +655,10 @@ Theorem ent_inv_subtyp_typ : forall A S1 T1 S2 T2,
         S2 <⦂ S1 ⋏ T1 <⦂ T2.
 Proof.
   introv. introe. inv_sat. inv_closed_all.
-  apply invert_subtyp_typ in H6 as [Hs1 Hs2]; try assumption.
+  match goal with
+  | H : G ⊢ _ <: _ |- _ =>
+    apply invert_subtyp_typ in H as [Hs1 Hs2]; try assumption
+  end.
   constructor; solve_trivial_sub.
 Qed.
 
@@ -669,7 +677,7 @@ Qed.
 Lemma ent_sub_and_and : forall S T U,
     S <⦂ typ_and T U ⊩ S <⦂ T ⋏ S <⦂ U.
 Proof.
-  introe. inv_sat. invs H5.
+  introe. inv_sat. inv_closed.
   assert (G ⊢ S' <: T /\ G ⊢ S' <: U) as [Hs1 Hs2] by apply* invert_subtyp_and2.
   apply* sat_and; eapply sat_sub with (S' := S');
     try assumption;

@@ -147,14 +147,12 @@ with cty_defs : constr -> ctx -> defs -> typ -> Prop :=
 where "C ',' G '/-c' ds '::' T" := (cty_defs C G ds T).
 
 (** ⊤, (x: {A: {X: ⊥..T1}..{X: ⊥..T2}}, y: T1) ⊢c y: T2 *)
-Lemma test : forall G x y A X T1 T2,
+Lemma typing_example1 : forall G x y A X T1 T2,
     binds x
           (typ_rcd
              (dec_typ A
                       (typ_rcd (dec_typ X typ_bot T1))
-                      (typ_rcd (dec_typ X typ_bot T2))
-             )
-          )
+                      (typ_rcd (dec_typ X typ_bot T2))))
           G ->
     binds y T1 G ->
     ⊤, G ⊢c trm_var (avar_f y) : T2.
@@ -166,4 +164,15 @@ Proof.
     -- constructor*.
     -- eapply ent_trans.
        + apply ent_and_right.
-       + eapply ent_trans.
+       + eapply ent_trans. apply ent_exists_v_intro'.
+         eapply ent_trans. apply ent_cong_exists_v.
+         2: {
+           eapply ent_trans.
+           eapply ent_bound_sub.
+           eapply ent_trans. apply ent_and_right.
+           eapply ent_trans. eapply ent_inv_subtyp_typ.
+           apply ent_and_right.
+         }
+         simpl_open_constr. introv Heqc Heqd. subst C' D'.
+         eapply ent_and_intro. apply ent_refl.
+Qed.

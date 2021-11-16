@@ -86,3 +86,35 @@ Proof.
   apply* destruct_subtyp_typ_p_label.
 Qed.
 
+Lemma typ_bounds_subtyping : forall G x A S1 T1 S2 T2,
+    G ⊢ trm_var (avar_f x) : typ_rcd (dec_typ A S1 T1) ->
+    G ⊢ trm_var (avar_f x) : typ_rcd (dec_typ A S2 T2) ->
+    G ⊢ S1 <: T2 /\ G ⊢ S2 <: T1.
+Proof.
+  introv Hs1 Hs2.
+  split;
+    apply subtyp_trans with (T := typ_sel (avar_f x) A);
+    eauto.
+Qed.
+
+Lemma invert_subtyp_and2_p : forall G S T U,
+    G ⊢! S <: typ_and T U ->
+    G ⊢! S <: T /\ G ⊢! S <: U.
+Proof.
+  introv Hsub.
+  remember (typ_and T U) as and2. gen T U.
+  induction Hsub; subst; introv Heq; try inversion Heq; eauto; try (specialize (IHHsub _ _ Heq) as [IH1 IH2]; eauto).
+  subst. eauto.
+Qed.
+
+Lemma invert_subtyp_and2 : forall G S T U,
+    inert G ->
+    G ⊢ S <: typ_and T U ->
+    G ⊢ S <: T /\ G ⊢ S <: U.
+Proof.
+  introv H0 Hs.
+  assert (G ⊢! S <: T /\ G ⊢! S <: U) as [Hs1 Hs2]
+      by (apply~ invert_subtyp_and2_p; apply~ general_to_prec).
+  split; apply* prec_to_general.
+Qed.
+

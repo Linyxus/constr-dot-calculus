@@ -170,14 +170,46 @@ Proof.
       try (f_equal; apply* ctyp_closed_unique).
 Qed.
 
+Lemma ctrm_closed_unique : forall t t1 t2,
+    ctrm_closed t t1 ->
+    ctrm_closed t t2 ->
+    t1 = t2
+with cval_closed_unique : forall v v1 v2,
+    cval_closed v v1 ->
+    cval_closed v v2 ->
+    v1 = v2
+with cdef_closed_unique : forall d d1 d2,
+    cdef_closed d d1 ->
+    cdef_closed d d2 ->
+    d1 = d2
+with cdefs_closed_unique : forall ds ds1 ds2,
+    cdefs_closed ds ds1 ->
+    cdefs_closed ds ds2 ->
+    ds1 = ds2.
+Proof.
+  all: introv Hc1 Hc2; induction Hc1;
+    inversion Hc2; subst; auto;
+    try (f_equal; eauto);
+    try apply* ctyp_closed_unique.
+Qed.
+
+(** ** Constraint Language *)
 Inductive constr : Set :=
+(** ⊤ *)
 | constr_true : constr
+(** ⊥ *)
 | constr_false : constr
+(** C ⋏ D *)
 | constr_and : constr -> constr -> constr
+(** C ⋎ D *)
 | constr_or : constr -> constr -> constr
+(** ∃X. C *)
 | constr_exists_typ : constr -> constr
+(** ∃x. C *)
 | constr_exists_var : constr -> constr
+(** S <: T *)
 | constr_sub : ctyp -> ctyp -> constr
+(** t : T *)
 | constr_typ : ctrm -> ctyp -> constr
 .
 
@@ -197,7 +229,6 @@ Notation "'∃v' C" := (constr_exists_var C) (at level 30).
 Notation "x '⦂' T" := (constr_typ x T) (at level 29).
 (** - subtyping constraint *)
 Notation "S '<⦂' T" := (constr_sub S T) (at level 29).
-
 
 (** ** Opening *)
 
@@ -330,6 +361,7 @@ Notation "C '^^' u" := (open_constr_var C u) (at level 30).
 (** ** Lemmas on openning and closed types *)
 
 Ltac invsc H := inversion H; subst; clear H.
+Ltac invs H := inversion H; subst.
 
 Ltac open_closed_eq_aux :=
   match goal with
@@ -383,6 +415,8 @@ Proof.
   introv [T' Hc]. apply* open_closed_ctyp_var_unchanged.
 Qed.
 
+(** * Constraint Interpretation *)
+
 Reserved Notation "G '⊧' C" (at level 40).
 
 Inductive satisfy_constr : ctx -> constr -> Prop :=
@@ -427,6 +461,9 @@ where "G '⊧' C" := (satisfy_constr G C).
 
 Hint Constructors satisfy_constr constr.
 
+(** * Constraint Entailment *)
+
+(** ** Definition of entailment *)
 Definition constr_entail (C1 C2 : constr) :=
   forall G,
     inert G ->
@@ -434,40 +471,9 @@ Definition constr_entail (C1 C2 : constr) :=
 
 Notation "C '⊩' D" := (constr_entail C D) (at level 50).
 
+(** ** Tactics *)
+
 Ltac introe := introv H0 H.
-
-Theorem ent_absurd : forall C,
-    ⊥ ⊩ C.
-Proof.
-  introe. inversion H.
-Qed.
-
-
-Theorem ent_tautology : forall C,
-    C ⊩ ⊤.
-Proof. introe. eauto. Qed.
-
-Theorem ent_trans : forall C1 C2 C3,
-    C1 ⊩ C2 ->
-    C2 ⊩ C3 ->
-    C1 ⊩ C3.
-Proof.
-  introv H12 H23.
-  introe.
-  eauto.
-Qed.
-
-Theorem ent_cong_and : forall C C' D,
-    C ⊩ C' ->
-    C ⋏ D ⊩ C' ⋏ D.
-Proof.
-  introv He. introe. inversion H; subst.
-  eauto.
-Qed.
-
-Theorem ent_and_left : forall C D,
-    C ⋏ D ⊩ C.
-Proof. introe. inversion H; subst. eauto. Qed.
 
 Ltac inv_sat :=
   match goal with
@@ -479,6 +485,7 @@ Ltac inv_sat_all := repeat inv_sat.
 Ltac inv_closed :=
   match goal with
   | H : ctyp_closed _ _ |- _ => idtac H; inversion H; subst; clear H
+  | H : ctrm_closed _ _ |- _ => idtac H; inversion H; subst; clear H
   end.
 
 Ltac inv_closed_all := repeat inv_closed.
@@ -506,12 +513,56 @@ Ltac solve_ctyp_closed_unique T1 T2 :=
   | |- _ => replace T1 with T2 in * by apply* ctyp_closed_unique
   end.
 
+Ltac solve_ctrm_closed_unique t1 t2 :=
+  match goal with
+  | |- _ => replace t1 with t2 in * by apply* ctrm_closed_unique
+  end.
+
 Ltac solve_trivial_sub :=
   match goal with
   | H : ?G ⊢ ?S <: ?T |- ?G ⊧ (ctyp_typ ?S) <⦂ (ctyp_typ ?T) =>
     idtac G; idtac S; idtac T;
     apply sat_sub with (S' := S) (T' := T); try assumption; try apply ctyp_typ_closed
   end.
+
+(** ** Entailment Laws *)
+
+(** ∀ C, ⊥ ⊩ C
+    From false follows everything. *)
+Theorem ent_absurd : forall C,
+    ⊥ ⊩ C.
+Proof.
+  introe. inversion H.
+Qed.
+
+
+(** ∀ C, C ⊩ ⊤ *)
+Theorem ent_tautology : forall C,
+    C ⊩ ⊤.
+Proof. introe. eauto. Qed.
+
+(** If C1 ⊩ C2 and C2 ⊩ C3, then C1 ⊩ C3. *)
+Theorem ent_trans : forall C1 C2 C3,
+    C1 ⊩ C2 ->
+    C2 ⊩ C3 ->
+    C1 ⊩ C3.
+Proof.
+  introv H12 H23.
+  introe.
+  eauto.
+Qed.
+
+Theorem ent_cong_and : forall C C' D,
+    C ⊩ C' ->
+    C ⋏ D ⊩ C' ⋏ D.
+Proof.
+  introv He. introe. inversion H; subst.
+  eauto.
+Qed.
+
+Theorem ent_and_left : forall C D,
+    C ⋏ D ⊩ C.
+Proof. introe. inversion H; subst. eauto. Qed.
 
 (** If U is fresh for S and T, then
     ∃ U. (S <: U ⋏ U <: T) ⊩ S <: T
@@ -544,6 +595,7 @@ Proof.
   inversion H3.
 Qed.
 
+(** x: T ⊩ ∃y. y: T *)
 Lemma ent_exists_v_i : forall x T,
     ctrm_var (cvar_avar (avar_f x)) ⦂ T ⊩ ∃v ctrm_var (cvar_cvar 0) ⦂ T.
 Proof.
@@ -553,6 +605,30 @@ Proof.
   apply sat_exists_var with (u := x).
   simpl_open_constr. apply* sat_typ.
   solve_open_closed_ctyp_eq x T. auto.
+Qed.
+
+(** ∃x. (x: {A:S1..T1} ⋏ x: {A:S2..T2}) ⊩ S1 <: T2 ⋏ S2 <: T1 *)
+Lemma ent_bound_sub : forall A S1 T1 S2 T2,
+    ∃v (ctrm_var (cvar_cvar 0) ⦂ typ_rcd (dec_typ A S1 T1) ⋏
+        ctrm_var (cvar_cvar 0) ⦂ typ_rcd (dec_typ A S2 T2)) ⊩
+    S1 <⦂ T2 ⋏ S2 <⦂ T1.
+Proof.
+  introv. introe.
+  inv_sat. simpl_open_constr.
+  inv_sat_all.
+  solve_ctrm_closed_unique t' t'0.
+  inv_closed_all.
+  assert (G ⊢ S1 <: T2 /\ G ⊢ S2 <: T1) as [Hs1 Hs2] by apply* typ_bounds_subtyping.
+  apply* sat_and; solve_trivial_sub.
+Qed.
+
+(** x: S ⋏ S <: T ⊩ x: T *)
+Lemma ent_typ_subsume : forall x S T,
+    trm_var (avar_f x) ⦂ S ⋏ S <⦂ T ⊩ trm_var (avar_f x) ⦂ T.
+Proof.
+  introe. inv_sat_all. inversion H3; subst.
+  apply* sat_typ.
+  solve_ctyp_closed_unique S' T'0. eauto.
 Qed.
 
 (** U1 /\ U2 <: {A: S..T} ⊩ U1 <: {A: S..T} \/ U2 <: {A: S..T}
@@ -578,6 +654,8 @@ Proof.
   constructor; solve_trivial_sub.
 Qed.
 
+(** If A ≠ B,
+    then {A:S1..T1} <: {B:S2..T2} ⊩ ⊥  *)
 Theorem ent_subtyp_typ_label_neq_false : forall A S1 T1 B S2 T2,
     A <> B ->
     typ_rcd (dec_typ A S1 T1) <⦂ typ_rcd (dec_typ B S2 T2) ⊩ ⊥.
@@ -585,5 +663,17 @@ Proof.
   introv Hne. introe. inv_sat. inv_closed_all.
   apply invert_subtyp_typ_label_neq_false in H6; try assumption.
   contradiction.
+Qed.
+
+(** S <: T ∧ U ⊩ S <: T ⋏ S <: U *)
+Lemma ent_sub_and_and : forall S T U,
+    S <⦂ typ_and T U ⊩ S <⦂ T ⋏ S <⦂ U.
+Proof.
+  introe. inv_sat. invs H5.
+  assert (G ⊢ S' <: T /\ G ⊢ S' <: U) as [Hs1 Hs2] by apply* invert_subtyp_and2.
+  apply* sat_and; eapply sat_sub with (S' := S');
+    try assumption;
+    try apply ctyp_typ_closed;
+    try assumption.
 Qed.
 

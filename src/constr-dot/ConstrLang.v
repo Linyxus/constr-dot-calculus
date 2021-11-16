@@ -41,11 +41,37 @@ with cdec : Set :=
   | cdec_typ  : typ_label -> ctyp -> ctyp -> cdec
   | cdec_trm  : trm_label -> ctyp -> cdec.
 
+(** *** Terms with variables bound by constraints. *)
+Inductive ctrm : Set :=
+  | ctrm_var  : cvar -> ctrm
+  | ctrm_trm  : trm -> ctrm
+  | ctrm_val  : cval -> ctrm
+  | ctrm_sel  : cvar -> trm_label -> ctrm
+  | ctrm_app  : cvar -> cvar -> ctrm
+  | ctrm_let  : ctrm -> ctrm -> ctrm
+with cval : Set :=
+  | cval_new  : ctyp -> cdefs -> cval
+  | cval_lambda : ctyp -> ctrm -> cval
+with cdef : Set :=
+  | cdef_typ  : typ_label -> ctyp -> cdef
+  | cdef_trm  : trm_label -> ctrm -> cdef
+with cdefs : Set :=
+  | cdefs_nil : cdefs
+  | cdefs_cons : cdefs -> cdef -> cdefs.
+
 Scheme ctyp_mut := Induction for ctyp Sort Prop
 with   cdec_mut := Induction for cdec Sort Prop.
 Combined Scheme ctyp_mutind from ctyp_mut, cdec_mut.
 
+Scheme ctrm_mut  := Induction for ctrm  Sort Prop
+with   cval_mut  := Induction for cval Sort Prop
+with   cdef_mut  := Induction for cdef  Sort Prop
+with   cdefs_mut := Induction for cdefs Sort Prop.
+Combined Scheme ctrm_mutind from ctrm_mut, cval_mut, cdef_mut, cdefs_mut.
+
+(** Coercions *)
 Coercion ctyp_typ : typ >-> ctyp.
+Coercion ctrm_trm : trm >-> ctrm.
 
 Inductive ctyp_closed : ctyp -> typ -> Prop :=
 | ctyp_top_closed : ctyp_closed ctyp_top typ_top
@@ -81,11 +107,45 @@ Scheme ctyp_closed_mut    := Induction for ctyp_closed Sort Prop
 with   cdec_closed_mut    := Induction for cdec_closed Sort Prop.
 Combined Scheme ctyp_closed_mutind from ctyp_closed_mut, cdec_closed_mut.
 
-Inductive ctrm : Set :=
-  | ctrm_var_b : nat -> ctrm
-  | ctrm_trm : trm -> ctrm.
-
-Coercion ctrm_trm : trm >-> ctrm.
+Inductive ctrm_closed : ctrm -> trm -> Prop :=
+| ctrm_cvar_closed : forall x,
+    ctrm_closed (ctrm_var (cvar_avar x)) (trm_var x)
+| ctrm_trm_closed : forall t,
+    ctrm_closed (ctrm_trm t) t
+| ctrm_val_closed : forall v v',
+    cval_closed v v' ->
+    ctrm_closed (ctrm_val v) (trm_val v')
+| ctrm_sel_closed : forall x T,
+    ctrm_closed (ctrm_sel (cvar_avar x) T) (trm_sel x T)
+| ctrm_app_closed : forall x y,
+    ctrm_closed (ctrm_app (cvar_avar x) (cvar_avar y)) (trm_app x y)
+| ctrm_let_closed : forall t t' u u',
+    ctrm_closed t t' ->
+    ctrm_closed u u' ->
+    ctrm_closed (ctrm_let t u) (trm_let t' u')
+with cval_closed : cval -> val -> Prop :=
+| cval_new_closed : forall T T' ds ds',
+    ctyp_closed T T' ->
+    cdefs_closed ds ds' ->
+    cval_closed (cval_new T ds) (val_new T' ds')
+| cval_lambda_closed : forall T T' t t',
+    ctyp_closed T T' ->
+    ctrm_closed t t' ->
+    cval_closed (cval_lambda T t) (val_lambda T' t')
+with cdef_closed : cdef -> def -> Prop :=
+| cdef_typ_closed : forall A T T',
+    ctyp_closed T T' ->
+    cdef_closed (cdef_typ A T) (def_typ A T')
+| cdef_trm_closed : forall a t t',
+    ctrm_closed t t' ->
+    cdef_closed (cdef_trm a t) (def_trm a t')
+with cdefs_closed : cdefs -> defs -> Prop :=
+| cdefs_nil_closed : cdefs_closed cdefs_nil defs_nil
+| cdefs_cons_closed : forall d d' ds ds',
+    cdef_closed d d' ->
+    cdefs_closed ds ds' ->
+    cdefs_closed (cdefs_cons ds d) (defs_cons ds' d')
+.
 
 Inductive constr : Set :=
 | constr_true : constr
@@ -136,12 +196,6 @@ with open_rec_cdec (k : nat) (t : typ) (D : cdec) : cdec :=
   | cdec_trm a T => cdec_trm a (open_rec_ctyp k t T)
   end.
 
-Definition open_rec_ctrm (k : nat) (u : var) (t : ctrm) : ctrm :=
-  match t with
-  | ctrm_var_b i => If k = i then ctrm_trm (trm_var (avar_f u)) else ctrm_var_b i
-  | ctrm_trm t => ctrm_trm t
-  end.
-
 Fixpoint open_rec_constr_typ (k : nat) (T : typ) (C : constr) : constr :=
   match C with
   | constr_true => constr_true
@@ -154,21 +208,10 @@ Fixpoint open_rec_constr_typ (k : nat) (T : typ) (C : constr) : constr :=
   | constr_typ t T0 => constr_typ t (open_rec_ctyp k T T0)
   end.
 
-Fixpoint open_rec_constr_var (k : nat) (u : var) (C : constr) : constr :=
-  match C with
-  | constr_true => constr_true
-  | constr_false => constr_false
-  | constr_and C1 C2 => constr_and (open_rec_constr_var k u C1) (open_rec_constr_var k u C2)
-  | constr_or C1 C2 => constr_or (open_rec_constr_var k u C1) (open_rec_constr_var k u C2)
-  | constr_exists_typ C => constr_exists_typ (open_rec_constr_var (S k) u C)
-  | constr_exists_var C => constr_exists_var (open_rec_constr_var (S k) u C)
-  | constr_sub T1 T2 => constr_sub T1 T2
-  | constr_typ t T0 => constr_typ (open_rec_ctrm k u t) T0
-  end.
-
 Definition open_ctyp (S : typ) (T : ctyp) : ctyp := open_rec_ctyp 0 S T.
 Definition open_cdec (S : typ) (D : cdec) : cdec := open_rec_cdec 0 S D.
 Definition open_constr_typ (T : typ) (C : constr) : constr := open_rec_constr_typ 0 T C.
+Definition open_constr_var (t : trm) (C : constr) : constr. Admitted.
 
 (** ** Lemmas on openning and closed types *)
 
@@ -234,41 +277,6 @@ Proof.
   introv [T' Hc]. apply* open_closed_ctyp_unchanged.
 Qed.
 
-Inductive ctyp_lc : ctyp -> Prop :=
-| ctyp_typ_lc : forall T, ctyp_lc (ctyp_typ T)
-.
-
-Inductive constr_lc : constr -> Prop :=
-| constr_true_lc: constr_lc ⊤
-| constr_false_lc: constr_lc ⊥
-| constr_and_lc : forall C1 C2,
-    constr_lc C1 ->
-    constr_lc C2 ->
-    constr_lc (C1 ⋏ C2)
-| constr_or_lc : forall C1 C2,
-    constr_lc C1 ->
-    constr_lc C2 ->
-    constr_lc (C1 ⋎ C2)
-| constr_exists_typ_lc : forall L C,
-    (forall x, x \notin L -> constr_lc (open_constr_typ x C)) ->
-    constr_lc (∃t C)
-| constr_sub_lc : forall S T,
-    ctyp_lc S ->
-    ctyp_lc T ->
-    constr_lc (S <⦂ T)
-| constr_typ_lc : forall t T,
-    ctyp_lc T ->
-    constr_lc (t ⦂ T)
-.
-
-Lemma lc_ctyp_open_unchanged : forall S T,
-    ctyp_lc T ->
-    open_ctyp S T = T.
-Proof.
-  introv Hc.
-  induction Hc; eauto.
-Qed.
-
 Reserved Notation "G '⊧' C" (at level 40).
 
 Inductive satisfy_constr : ctx -> constr -> Prop :=
@@ -292,6 +300,10 @@ Inductive satisfy_constr : ctx -> constr -> Prop :=
 | sat_exists_typ : forall G T C,
     G ⊧ open_constr_typ T C ->
     G ⊧ (∃t C)
+
+| sat_exists_var : forall G t C,
+    G ⊧ open_constr_var t C ->
+    G ⊧ (∃v C)
 
 | sat_typ : forall G t T,
     G ⊢ t : T ->

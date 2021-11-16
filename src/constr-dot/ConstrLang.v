@@ -355,8 +355,8 @@ Definition open_cdec_var (u : var) (D : cdec) : cdec := open_rec_cdec_var 0 u D.
 Definition open_constr_typ (T : typ) (C : constr) : constr := open_rec_constr_typ 0 T C.
 Definition open_constr_var (u : var) (C : constr) : constr := open_rec_constr_var 0 u C.
 
-Notation "C '^^' T" := (open_constr_typ C T) (at level 30).
-Notation "C '^^' u" := (open_constr_var C u) (at level 30).
+Notation "C '^^t' T" := (open_constr_typ T C) (at level 30).
+Notation "C '^^v' u" := (open_constr_var u C) (at level 30).
 
 (** ** Lemmas on openning and closed types *)
 
@@ -438,11 +438,11 @@ Inductive satisfy_constr : ctx -> constr -> Prop :=
     G ⊧ C1 ⋎ C2
 
 | sat_exists_typ : forall G T C,
-    G ⊧ open_constr_typ T C ->
+    G ⊧ C ^^t T ->
     G ⊧ (∃t C)
 
 | sat_exists_var : forall G u C,
-    G ⊧ open_constr_var u C ->
+    G ⊧ C ^^v u ->
     G ⊧ (∃v C)
 
 | sat_typ : forall G t t' T T',
@@ -575,6 +575,14 @@ Theorem ent_and_right : forall C D,
     C ⋏ D ⊩ D.
 Proof. introe. inversion H; subst. eauto. Qed.
 
+Theorem ent_and_intro : forall C D,
+    C ⊩ D ->
+    C ⊩ C ⋏ D.
+Proof.
+  introv Hcd. introe.
+  constructor*.
+Qed.
+
 (** If U is fresh for S and T, then
     ∃ U. (S <: U ⋏ U <: T) ⊩ S <: T
  *)
@@ -606,8 +614,21 @@ Proof.
   inversion H3.
 Qed.
 
+(** If C ⊩ D, then ∃ x. C ⊩ ∃ x. D *)
+Lemma ent_cong_exists_v : forall C D,
+    (forall u C' D',
+        C ^^v u = C' ->
+        D ^^v u = D' ->
+        C' ⊩ D') ->
+    ∃v C ⊩ ∃v D.
+Proof.
+  introv Hent. introe. inv_sat.
+  apply sat_exists_var with (u := u).
+  apply* Hent.
+Qed.
+
 (** x: T ⊩ ∃y. y: T *)
-Lemma ent_exists_v_i : forall x T,
+Lemma ent_exists_v_intro : forall x T,
     ctrm_var (cvar_avar (avar_f x)) ⦂ T ⊩ ∃v ctrm_var (cvar_cvar 0) ⦂ T.
 Proof.
   introv. introe.
@@ -616,6 +637,19 @@ Proof.
   apply sat_exists_var with (u := x).
   simpl_open_constr. apply* sat_typ.
   solve_open_closed_ctyp_eq x T. auto.
+Qed.
+
+Lemma ent_exists_v_intro' : forall x T,
+    ctrm_trm (trm_var (avar_f x)) ⦂ T ⊩ ∃v ctrm_var (cvar_cvar 0) ⦂ T.
+Proof.
+  introe. inv_sat. inv_closed.
+  apply sat_exists_var with (u := x). simpl_open_constr.
+  solve_open_closed_ctyp_eq x T. eapply sat_typ.
+  apply ctrm_cvar_closed.
+  match goal with
+  | H : ctyp_closed T _ |- _ => exact H
+  end.
+  auto.
 Qed.
 
 (** ∃x. (x: {A:S1..T1} ⋏ x: {A:S2..T2}) ⊩ S1 <: T2 ⋏ S2 <: T1 *)

@@ -73,6 +73,12 @@ Combined Scheme ctrm_mutind from ctrm_mut, cval_mut, cdef_mut, cdefs_mut.
 Coercion ctyp_typ : typ >-> ctyp.
 Coercion ctrm_trm : trm >-> ctrm.
 
+(** *** Closeness
+    A type or term is closed, if it does not refer to variables bound
+    by the existential qualifier of the constraint language.
+
+    In other words, all type variables and term variables are substituted
+    to concrete types and variables.  *)
 Inductive ctyp_closed : ctyp -> typ -> Prop :=
 | ctyp_top_closed : ctyp_closed ctyp_top typ_top
 | ctyp_bot_closed : ctyp_closed ctyp_bot typ_bot
@@ -147,6 +153,23 @@ with cdefs_closed : cdefs -> defs -> Prop :=
     cdefs_closed (cdefs_cons ds d) (defs_cons ds' d')
 .
 
+Lemma ctyp_closed_unique : forall T T1 T2,
+    ctyp_closed T T1 ->
+    ctyp_closed T T2 ->
+    T1 = T2
+with cdec_closed_unique : forall D D1 D2,
+    cdec_closed D D1 ->
+    cdec_closed D D2 ->
+    D1 = D2.
+Proof.
+  all: introv Hc1 Hc2.
+  - induction Hc1; inversion Hc2; subst; auto;
+      try (f_equal; apply* cdec_closed_unique);
+      try (f_equal; apply* ctyp_closed_unique).
+  - induction Hc1; inversion Hc2; subst; auto;
+      try (f_equal; apply* ctyp_closed_unique).
+Qed.
+
 Inductive constr : Set :=
 | constr_true : constr
 | constr_false : constr
@@ -178,22 +201,96 @@ Notation "S '<⦂' T" := (constr_sub S T) (at level 29).
 
 (** ** Opening *)
 
-Fixpoint open_rec_ctyp (k : nat) (t : typ) (T : ctyp) : ctyp :=
+Fixpoint open_rec_ctyp_typ (k : nat) (t : typ) (T : ctyp) : ctyp :=
   match T with
   | ctyp_top => ctyp_top
   | ctyp_bot => ctyp_bot
   | ctyp_tvar i => If k = i then ctyp_typ t else ctyp_tvar i
   | ctyp_typ u => ctyp_typ u
-  | ctyp_rcd D => ctyp_rcd (open_rec_cdec k t D)
-  | ctyp_and T U => ctyp_and (open_rec_ctyp k t T) (open_rec_ctyp k t U)
+  | ctyp_rcd D => ctyp_rcd (open_rec_cdec_typ k t D)
+  | ctyp_and T U => ctyp_and (open_rec_ctyp_typ k t T) (open_rec_ctyp_typ k t U)
   | ctyp_sel x T => ctyp_sel x T
-  | ctyp_bnd T => ctyp_bnd (open_rec_ctyp k t T)
-  | ctyp_all T U => ctyp_all (open_rec_ctyp k t T) (open_rec_ctyp k t U)
+  | ctyp_bnd T => ctyp_bnd (open_rec_ctyp_typ k t T)
+  | ctyp_all T U => ctyp_all (open_rec_ctyp_typ k t T) (open_rec_ctyp_typ k t U)
   end
-with open_rec_cdec (k : nat) (t : typ) (D : cdec) : cdec :=
+with open_rec_cdec_typ (k : nat) (t : typ) (D : cdec) : cdec :=
   match D with
-  | cdec_typ A T U => cdec_typ A (open_rec_ctyp k t T) (open_rec_ctyp k t U)
-  | cdec_trm a T => cdec_trm a (open_rec_ctyp k t T)
+  | cdec_typ A T U => cdec_typ A (open_rec_ctyp_typ k t T) (open_rec_ctyp_typ k t U)
+  | cdec_trm a T => cdec_trm a (open_rec_ctyp_typ k t T)
+  end.
+
+Definition open_rec_cvar (k : nat) (u : var) (v : cvar) : cvar :=
+  match v with
+  | cvar_avar x => cvar_avar x
+  | cvar_cvar i => If k = i then cvar_avar (avar_f u) else cvar_cvar i
+  end.
+
+Fixpoint open_rec_ctyp_var (k : nat) (u : var) (T : ctyp) : ctyp :=
+  match T with
+  | ctyp_top => ctyp_top
+  | ctyp_bot => ctyp_bot
+  | ctyp_tvar i => ctyp_tvar i
+  | ctyp_typ u => ctyp_typ u
+  | ctyp_rcd D => ctyp_rcd (open_rec_cdec_var k u D)
+  | ctyp_and T U => ctyp_and (open_rec_ctyp_var k u T) (open_rec_ctyp_var k u U)
+  | ctyp_sel x T => ctyp_sel (open_rec_cvar k u x) T
+  | ctyp_bnd T => ctyp_bnd (open_rec_ctyp_var k u T)
+  | ctyp_all T U => ctyp_all (open_rec_ctyp_var k u T) (open_rec_ctyp_var k u U)
+  end
+with open_rec_cdec_var (k : nat) (u : var) (D : cdec) : cdec :=
+  match D with
+  | cdec_typ A T U => cdec_typ A (open_rec_ctyp_var k u T) (open_rec_ctyp_var k u U)
+  | cdec_trm a T => cdec_trm a (open_rec_ctyp_var k u T)
+  end.
+
+Fixpoint open_rec_ctrm_typ (k : nat) (t : typ) (u : ctrm) : ctrm :=
+  match u with
+  | ctrm_var x => ctrm_var x
+  | ctrm_trm t => ctrm_trm t
+  | ctrm_val v => ctrm_val (open_rec_cval_typ k t v)
+  | ctrm_sel x T => ctrm_sel x T
+  | ctrm_app x y => ctrm_app x y
+  | ctrm_let t1 t2 => ctrm_let (open_rec_ctrm_typ k t t1) (open_rec_ctrm_typ k t t2)
+  end
+with open_rec_cval_typ (k : nat) (t : typ) (v : cval) : cval :=
+  match v with
+  | cval_new T ds => cval_new (open_rec_ctyp_typ k t T) (open_rec_cdefs_typ k t ds)
+  | cval_lambda T u => cval_lambda (open_rec_ctyp_typ k t T) (open_rec_ctrm_typ k t u)
+  end
+with open_rec_cdef_typ (k : nat) (t : typ) (d : cdef) : cdef :=
+  match d with
+  | cdef_typ A T => cdef_typ A (open_rec_ctyp_typ k t T)
+  | cdef_trm a u => cdef_trm a (open_rec_ctrm_typ k t u)
+  end
+with open_rec_cdefs_typ (k : nat) (t : typ) (ds : cdefs) : cdefs :=
+  match ds with
+  | cdefs_nil => cdefs_nil
+  | cdefs_cons ds d => cdefs_cons (open_rec_cdefs_typ k t ds) (open_rec_cdef_typ k t d)
+  end.
+
+Fixpoint open_rec_ctrm_var (k : nat) (u : var) (t : ctrm) : ctrm :=
+  match t with
+  | ctrm_var x => ctrm_var (open_rec_cvar k u x)
+  | ctrm_trm t => ctrm_trm t
+  | ctrm_val v => ctrm_val (open_rec_cval_var k u v)
+  | ctrm_sel x T => ctrm_sel (open_rec_cvar k u x) T
+  | ctrm_app x y => ctrm_app (open_rec_cvar k u x) (open_rec_cvar k u y)
+  | ctrm_let t1 t2 => ctrm_let (open_rec_ctrm_var k u t1) (open_rec_ctrm_var k u t2)
+  end
+with open_rec_cval_var (k : nat) (u : var) (v : cval) : cval :=
+  match v with
+  | cval_new T ds => cval_new (open_rec_ctyp_var k u T) (open_rec_cdefs_var k u ds)
+  | cval_lambda T t => cval_lambda (open_rec_ctyp_var k u T) (open_rec_ctrm_var k u t)
+  end
+with open_rec_cdef_var (k : nat) (u : var) (d : cdef) : cdef :=
+  match d with
+  | cdef_typ A T => cdef_typ A (open_rec_ctyp_var k u T)
+  | cdef_trm a t => cdef_trm a (open_rec_ctrm_var k u t)
+  end
+with open_rec_cdefs_var (k : nat) (u : var) (ds : cdefs) : cdefs :=
+  match ds with
+  | cdefs_nil => cdefs_nil
+  | cdefs_cons ds d => cdefs_cons (open_rec_cdefs_var k u ds) (open_rec_cdef_var k u d)
   end.
 
 Fixpoint open_rec_constr_typ (k : nat) (T : typ) (C : constr) : constr :=
@@ -203,78 +300,87 @@ Fixpoint open_rec_constr_typ (k : nat) (T : typ) (C : constr) : constr :=
   | constr_and C1 C2 => constr_and (open_rec_constr_typ k T C1) (open_rec_constr_typ k T C2)
   | constr_or C1 C2 => constr_or (open_rec_constr_typ k T C1) (open_rec_constr_typ k T C2)
   | constr_exists_typ C => constr_exists_typ (open_rec_constr_typ (S k) T C)
-  | constr_exists_var C => constr_exists_var (open_rec_constr_typ (S k) T C)
-  | constr_sub T1 T2 => constr_sub (open_rec_ctyp k T T1) (open_rec_ctyp k T T2)
-  | constr_typ t T0 => constr_typ t (open_rec_ctyp k T T0)
+  | constr_exists_var C => constr_exists_var (open_rec_constr_typ k T C)
+  | constr_sub T1 T2 => constr_sub (open_rec_ctyp_typ k T T1) (open_rec_ctyp_typ k T T2)
+  | constr_typ t T0 => constr_typ (open_rec_ctrm_typ k T t) (open_rec_ctyp_typ k T T0)
   end.
 
-Definition open_ctyp (S : typ) (T : ctyp) : ctyp := open_rec_ctyp 0 S T.
-Definition open_cdec (S : typ) (D : cdec) : cdec := open_rec_cdec 0 S D.
+Fixpoint open_rec_constr_var (k : nat) (u : var) (C : constr) : constr :=
+  match C with
+  | constr_true => constr_true
+  | constr_false => constr_false
+  | constr_and C1 C2 => constr_and (open_rec_constr_var k u C1) (open_rec_constr_var k u C2)
+  | constr_or C1 C2 => constr_or (open_rec_constr_var k u C1) (open_rec_constr_var k u C2)
+  | constr_exists_typ C => constr_exists_typ (open_rec_constr_var k u C)
+  | constr_exists_var C => constr_exists_var (open_rec_constr_var (S k) u C)
+  | constr_sub T1 T2 => constr_sub (open_rec_ctyp_var k u T1) (open_rec_ctyp_var k u T2)
+  | constr_typ t T0 => constr_typ (open_rec_ctrm_var k u t) (open_rec_ctyp_var k u T0)
+  end.
+
+Definition open_ctyp_typ (S : typ) (T : ctyp) : ctyp := open_rec_ctyp_typ 0 S T.
+Definition open_cdec_typ (S : typ) (D : cdec) : cdec := open_rec_cdec_typ 0 S D.
+Definition open_ctyp_var (u : var) (T : ctyp) : ctyp := open_rec_ctyp_var 0 u T.
+Definition open_cdec_var (u : var) (D : cdec) : cdec := open_rec_cdec_var 0 u D.
 Definition open_constr_typ (T : typ) (C : constr) : constr := open_rec_constr_typ 0 T C.
-Definition open_constr_var (t : trm) (C : constr) : constr. Admitted.
+Definition open_constr_var (u : var) (C : constr) : constr := open_rec_constr_var 0 u C.
+
+Notation "C '^^' T" := (open_constr_typ C T) (at level 30).
+Notation "C '^^' u" := (open_constr_var C u) (at level 30).
 
 (** ** Lemmas on openning and closed types *)
 
-Lemma open_closed_ctyp_unchanged : forall S T T',
+Ltac invsc H := inversion H; subst; clear H.
+
+Ltac open_closed_eq_aux :=
+  match goal with
+  | |- (?P ?L) = (?P ?R) =>
+      assert (L = R) as ?H by eauto
+  | |- (?P ?L1 ?L2) = (?P ?R1 ?R2) =>
+      assert (L1 = R1) as ?H by eauto
+  end.
+
+Ltac simpl_open_ctyp :=
+  unfold open_ctyp_typ, open_cdec_typ, open_ctyp_var, open_cdec_var; simpl.
+
+Ltac solve_cong_eq :=
+  solve [
+    f_equal; eauto
+  ].
+
+Lemma open_closed_ctyp_typ_unchanged : forall S T T',
     ctyp_closed T T' ->
-    open_ctyp S T = T
-with open_closed_cdec_unchanged : forall S D D',
+    open_ctyp_typ S T = T
+with open_closed_cdec_typ_unchanged : forall S D D',
     cdec_closed D D' ->
-    open_cdec S D = D.
+    open_cdec_typ S D = D.
 Proof.
-  - introv Hc. induction Hc.
-    -- auto.
-    -- auto.
-    -- auto.
-    -- assert (open_cdec S D = D) as Heq.
-       {
-         apply* open_closed_cdec_unchanged.
-       }
-       replace (open_ctyp S (ctyp_rcd D)) with (ctyp_rcd (open_rec_cdec 0 S D)).
-       {
-         unfold open_cdec in Heq. rewrite -> Heq. trivial.
-       }
-       reflexivity.
-    -- replace (open_ctyp S (ctyp_and T U)) with (ctyp_and (open_rec_ctyp 0 S T) (open_rec_ctyp 0 S U)).
-       {
-         unfold open_ctyp in IHHc1. rewrite -> IHHc1.
-         unfold open_ctyp in IHHc2. rewrite -> IHHc2. trivial.
-       }
-       reflexivity.
-     -- reflexivity.
-     -- replace (open_ctyp S (ctyp_bnd T)) with (ctyp_bnd (open_rec_ctyp 0 S T)).
-        {
-          unfold open_ctyp in IHHc. rewrite -> IHHc. auto.
-        } auto.
-     -- replace (open_ctyp S (ctyp_all S0 T)) with (ctyp_all (open_rec_ctyp 0 S S0) (open_rec_ctyp 0 S T)).
-        {
-          unfold open_ctyp in IHHc1. rewrite -> IHHc1.
-          unfold open_ctyp in IHHc2. rewrite -> IHHc2. trivial.
-        }
-        auto.
-  - introv Hc. induction Hc.
-    -- unfold open_cdec. simpl.
-       assert (open_ctyp S S0 = S0).
-       {
-         apply* open_closed_ctyp_unchanged.
-       }
-       assert (open_ctyp S T = T).
-       {
-         apply* open_closed_ctyp_unchanged.
-       }
-       unfold open_ctyp in H1, H2. rewrite -> H1, H2. auto.
-    -- unfold open_cdec. simpl.
-       assert (open_ctyp S T = T); try apply* open_closed_ctyp_unchanged.
-       unfold open_ctyp in H0; rewrite H0; reflexivity.
+  all: introv Hc; induction Hc; auto; simpl_open_ctyp; try solve_cong_eq.
+Qed.
+
+Lemma open_closed_ctyp_var_unchanged : forall S T T',
+    ctyp_closed T T' ->
+    open_ctyp_var S T = T
+with open_closed_cdec_var_unchanged : forall S D D',
+    cdec_closed D D' ->
+    open_cdec_var S D = D.
+Proof.
+  all: introv Hc; induction Hc; auto; simpl_open_ctyp; try solve_cong_eq.
 Qed.
 
 Definition is_closed_ctyp (T : ctyp) := exists T', ctyp_closed T T'.
 
-Lemma open_closed_ctyp_unchanged' : forall S T,
+Lemma open_closed_ctyp_typ_unchanged' : forall S T,
     is_closed_ctyp T ->
-    open_ctyp S T = T.
+    open_ctyp_typ S T = T.
 Proof.
-  introv [T' Hc]. apply* open_closed_ctyp_unchanged.
+  introv [T' Hc]. apply* open_closed_ctyp_typ_unchanged.
+Qed.
+
+Lemma open_closed_ctyp_var_unchanged' : forall u T,
+    is_closed_ctyp T ->
+    open_ctyp_var u T = T.
+Proof.
+  introv [T' Hc]. apply* open_closed_ctyp_var_unchanged.
 Qed.
 
 Reserved Notation "G '⊧' C" (at level 40).
@@ -301,17 +407,21 @@ Inductive satisfy_constr : ctx -> constr -> Prop :=
     G ⊧ open_constr_typ T C ->
     G ⊧ (∃t C)
 
-| sat_exists_var : forall G t C,
-    G ⊧ open_constr_var t C ->
+| sat_exists_var : forall G u C,
+    G ⊧ open_constr_var u C ->
     G ⊧ (∃v C)
 
-| sat_typ : forall G t T,
-    G ⊢ t : T ->
-    G ⊧ t ⦂ ctyp_typ T
+| sat_typ : forall G t t' T T',
+    ctrm_closed t t' ->
+    ctyp_closed T T' ->
+    G ⊢ t' : T' ->
+    G ⊧ t ⦂ T
 
-| sat_sub : forall G S T,
-    G ⊢ S <: T ->
-    G ⊧ ctyp_typ S <⦂ ctyp_typ T
+| sat_sub : forall G S S' T T',
+    ctyp_closed S S' ->
+    ctyp_closed T T' ->
+    G ⊢ S' <: T' ->
+    G ⊧ S <⦂ T
 
 where "G '⊧' C" := (satisfy_constr G C).
 
@@ -359,6 +469,50 @@ Theorem ent_and_left : forall C D,
     C ⋏ D ⊩ C.
 Proof. introe. inversion H; subst. eauto. Qed.
 
+Ltac inv_sat :=
+  match goal with
+  | H : _ ⊧ _ |- _ => idtac H; inversion H; subst; clear H
+  end.
+
+Ltac inv_sat_all := repeat inv_sat.
+
+Ltac inv_closed :=
+  match goal with
+  | H : ctyp_closed _ _ |- _ => idtac H; inversion H; subst; clear H
+  end.
+
+Ltac inv_closed_all := repeat inv_closed.
+
+Ltac simpl_open_constr :=
+  unfold open_constr_typ, open_constr_var in *; simpl in *; try case_if.
+
+Ltac solve_open_closed_ctyp_eq T0 T :=
+  match goal with
+  | Hc : is_closed_ctyp T |- _ =>
+      try replace (open_rec_ctyp_typ 0 T0 T) with T in * by
+        (symmetry; apply* open_closed_ctyp_typ_unchanged');
+      try replace (open_rec_ctyp_var 0 T0 T) with T in * by
+        (symmetry; apply* open_closed_ctyp_var_unchanged')
+  | Hc : ctyp_closed T _ |- _ =>
+      idtac Hc;
+      try replace (open_rec_ctyp_typ 0 T0 T) with T in * by
+        (symmetry; apply* open_closed_ctyp_typ_unchanged);
+      try replace (open_rec_ctyp_var 0 T0 T) with T in * by
+        (symmetry; apply* open_closed_ctyp_var_unchanged)
+  end.
+
+Ltac solve_ctyp_closed_unique T1 T2 :=
+  match goal with
+  | |- _ => replace T1 with T2 in * by apply* ctyp_closed_unique
+  end.
+
+Ltac solve_trivial_sub :=
+  match goal with
+  | H : ?G ⊢ ?S <: ?T |- ?G ⊧ (ctyp_typ ?S) <⦂ (ctyp_typ ?T) =>
+    idtac G; idtac S; idtac T;
+    apply sat_sub with (S' := S) (T' := T); try assumption; try apply ctyp_typ_closed
+  end.
+
 (** If U is fresh for S and T, then
     ∃ U. (S <: U ⋏ U <: T) ⊩ S <: T
  *)
@@ -367,25 +521,20 @@ Theorem ent_sub_trans : forall S T,
     ∃t (S <⦂ (ctyp_tvar 0) ⋏ (ctyp_tvar 0) <⦂ T) ⊩ S <⦂ T.
 Proof.
   introv Hs Ht.
-  introe. inversion H; subst.
-  unfold open_constr_typ in H3. simpl in H3.
-  case_if. clear C.
-  pose proof (open_closed_ctyp_unchanged' T0 Hs) as Hsu.
-  unfold open_ctyp in Hsu. rewrite -> Hsu in H3.
-  pose proof (open_closed_ctyp_unchanged' T0 Ht) as Htu.
-  unfold open_ctyp in Htu. rewrite -> Htu in H3.
-  clear Hsu Htu.
-  inversion H3; subst. clear H3.
-  inversion H5; clear H5; subst.
-  inversion H6; clear H6; subst.
-  apply* sat_sub.
+  introe. inv_sat.
+  simpl_open_constr. inv_sat.
+  solve_open_closed_ctyp_eq T0 T.
+  solve_open_closed_ctyp_eq T0 S.
+  inv_sat_all. apply sat_sub with (S' := S'0) (T' := T'); auto.
+  solve_ctyp_closed_unique S' T'0.
+  eauto.
 Qed.
 
 Theorem ent_and_true : forall C,
     C ⋏ ⊤ ⊩ C.
 Proof.
   introv. introe.
-  inversion H; subst; clear H. auto.
+  inversion_clear H; subst; auto.
 Qed.
 
 Theorem ent_and_false : forall C,
@@ -395,6 +544,17 @@ Proof.
   inversion H3.
 Qed.
 
+Lemma ent_exists_v_i : forall x T,
+    ctrm_var (cvar_avar (avar_f x)) ⦂ T ⊩ ∃v ctrm_var (cvar_cvar 0) ⦂ T.
+Proof.
+  introv. introe.
+  inv_sat.
+  inversion H3; subst.
+  apply sat_exists_var with (u := x).
+  simpl_open_constr. apply* sat_typ.
+  solve_open_closed_ctyp_eq x T. auto.
+Qed.
+
 (** U1 /\ U2 <: {A: S..T} ⊩ U1 <: {A: S..T} \/ U2 <: {A: S..T}
  *)
 Theorem ent_sub_and_rcd_or : forall U1 U2 A S T,
@@ -402,10 +562,10 @@ Theorem ent_sub_and_rcd_or : forall U1 U2 A S T,
         U1 <⦂ typ_rcd (dec_typ A S T) ⋎ U2 <⦂ typ_rcd (dec_typ A S T).
 Proof.
   introv. introe.
-  inversion H; subst; clear H.
-  apply invert_subtyp_and1_rcd in H3 as [H3 | H3]; try assumption.
-  - constructor. constructor. assumption.
-  - apply sat_or2. constructor. assumption.
+  inv_sat. inv_closed_all.
+  apply invert_subtyp_and1_rcd in H6 as [H6 | H6]; try assumption;
+    try (apply sat_or1; solve_trivial_sub);
+    try (apply sat_or2; solve_trivial_sub).
 Qed.
 
 (** {A: S1..T1} <: {A: S2..T2} ⊩ S2 <: S1 ⋏ T1 <: T2 *)
@@ -413,18 +573,17 @@ Theorem ent_inv_subtyp_typ : forall A S1 T1 S2 T2,
     typ_rcd (dec_typ A S1 T1) <⦂ typ_rcd (dec_typ A S2 T2) ⊩
         S2 <⦂ S1 ⋏ T1 <⦂ T2.
 Proof.
-  introv. introe.
-  inversion H; subst; clear H.
-  apply invert_subtyp_typ in H3 as [Hs1 Hs2]; try assumption.
-  constructor; constructor; auto.
+  introv. introe. inv_sat. inv_closed_all.
+  apply invert_subtyp_typ in H6 as [Hs1 Hs2]; try assumption.
+  constructor; solve_trivial_sub.
 Qed.
 
 Theorem ent_subtyp_typ_label_neq_false : forall A S1 T1 B S2 T2,
     A <> B ->
     typ_rcd (dec_typ A S1 T1) <⦂ typ_rcd (dec_typ B S2 T2) ⊩ ⊥.
 Proof.
-  introv Hne. introe. inversion H; subst; clear H.
-  apply invert_subtyp_typ_label_neq_false in H3; try assumption.
-  destruct H3.
+  introv Hne. introe. inv_sat. inv_closed_all.
+  apply invert_subtyp_typ_label_neq_false in H6; try assumption.
+  contradiction.
 Qed.
 

@@ -230,6 +230,10 @@ Notation "x '⦂' T" := (constr_typ x T) (at level 29).
 (** - subtyping constraint *)
 Notation "S '<⦂' T" := (constr_sub S T) (at level 29).
 
+(** Syntax sugars *)
+(** - type equality constraint *)
+Notation "S '=⦂=' T" := (S <⦂ T ⋏ T <⦂ S) (at level 29).
+
 (** ** Opening *)
 
 Fixpoint open_rec_ctyp_typ (k : nat) (t : typ) (T : ctyp) : ctyp :=
@@ -477,7 +481,9 @@ Ltac introe := introv H0 H.
 
 Ltac inv_sat :=
   match goal with
-  | H : _ ⊧ _ |- _ => idtac H; inversion H; subst; clear H
+  | H : _ ⊧ (_ _) |- _ => idtac H; inversion H; subst; clear H
+  | H : _ ⊧ (_ _ _) |- _ => idtac H; inversion H; subst; clear H
+  | H : _ ⊧ ⊥ |- _ => idtac H; inversion H; subst; clear H
   end.
 
 Ltac inv_sat_all := repeat inv_sat.
@@ -567,6 +573,12 @@ Proof.
   eauto.
 Qed.
 
+Theorem ent_and_comm : forall C D,
+    C ⋏ D ⊩ D ⋏ C.
+Proof.
+  introe. inv_sat. eauto.
+Qed.
+
 Theorem ent_and_left : forall C D,
     C ⋏ D ⊩ C.
 Proof. introe. inversion H; subst. eauto. Qed.
@@ -581,6 +593,48 @@ Theorem ent_and_intro : forall C D,
 Proof.
   introv Hcd. introe.
   constructor*.
+Qed.
+
+Lemma ent_and_assoc : forall C1 C2 C3,
+    (C1 ⋏ C2) ⋏ C3 ⊩ C1 ⋏ (C2 ⋏ C3).
+Proof.
+  introe. inv_sat. inv_sat. eauto.
+Qed.
+
+Lemma ent_or_comm : forall C D,
+    C ⋎ D ⊩ D ⋎ C.
+Proof.
+  introe. inv_sat; eauto.
+Qed.
+
+Lemma ent_or_assoc : forall C1 C2 C3,
+    (C1 ⋎ C2) ⋎ C3 ⊩ C1 ⋎ (C2 ⋎ C3).
+Proof.
+  introe. inv_sat; try inv_sat. all: eauto.
+Qed.
+
+Lemma ent_or_true : forall C,
+    ⊤ ⊩ C ⋎ ⊤.
+Proof.
+  introe. eauto.
+Qed.
+
+Lemma ent_or_false : forall C,
+    C ⋎ ⊥ ⊩ C.
+Proof.
+  introe. inv_sat; eauto. inv_sat.
+Qed.
+
+Lemma ent_or_dist_and : forall C D1 D2,
+    C ⋎ (D1 ⋏ D2) ⊩ (C ⋎ D1) ⋏ (C ⋎ D2).
+Proof.
+  introe. inv_sat; try inv_sat; eauto.
+Qed.
+
+Lemma ent_and_dist_or : forall C D1 D2,
+    C ⋏ (D1 ⋎ D2) ⊩ (C ⋏ D1) ⋎ (C ⋏ D2).
+Proof.
+  introe. inv_sat; try inv_sat; eauto.
 Qed.
 
 (** If U is fresh for S and T, then
@@ -598,20 +652,6 @@ Proof.
   inv_sat_all. apply sat_sub with (S' := S'0) (T' := T'); auto.
   solve_ctyp_closed_unique S' T'0.
   eauto.
-Qed.
-
-Theorem ent_and_true : forall C,
-    C ⋏ ⊤ ⊩ C.
-Proof.
-  introv. introe.
-  inversion_clear H; subst; auto.
-Qed.
-
-Theorem ent_and_false : forall C,
-    C ⋎ ⊥ ⊩ C.
-Proof.
-  introe. inversion H; subst; try assumption.
-  inversion H3.
 Qed.
 
 (** If C ⊩ D, then ∃ x. C ⊩ ∃ x. D *)

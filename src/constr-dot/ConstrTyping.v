@@ -6,7 +6,7 @@
 
 Set Implicit Arguments.
 
-Require Import ConstrLang Definitions.
+Require Import ConstrLang Definitions Subenvironments RecordAndInertTypes.
 
 (** * Typing Rules *)
 
@@ -176,3 +176,7 @@ Proof.
          simpl_open_constr. introv Heqc Heqd. subst C' D'.
          eapply ent_and_intro. apply ent_refl.
 Qed.
+
+Definition well_typed_constr C G t T :=
+  G ⊧ C /\ C, G ⊢c t: T.
+

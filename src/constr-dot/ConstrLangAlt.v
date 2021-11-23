@@ -376,7 +376,7 @@ Inductive satisfy_constr : (tctx * vctx * ctx) -> constr -> Prop :=
     (tm, vm, G) ⊧ (∃t C)
 
 | sat_exists_var : forall L tm vm G u C,
-    (forall x, x \notin L -> (tm, vm & x ~ u, G) ⊧ C ^^v u) ->
+    (forall x, x \notin L -> (tm, vm & x ~ u, G) ⊧ C ^^v x) ->
     (tm, vm, G) ⊧ (∃v C)
 
 | sat_typ : forall tm vm G t t' T T',
@@ -525,10 +525,11 @@ Qed.
 
 (** If C ⊩ D, then ∃ x. C ⊩ ∃ x. D *)
 Lemma ent_cong_exists_v : forall C D,
-    C ⊩ D ->
+    (forall x L, x \notin L -> C ^^v x ⊩ D ^^v x) ->
     ∃v C ⊩ ∃v D.
 Proof.
   introv Hent. introe. inv_sat.
   apply sat_exists_var with (u := u) (L := L).
-  apply* Hent.
+  introv Hn. apply* Hent.
 Qed.
+

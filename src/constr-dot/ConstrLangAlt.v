@@ -109,6 +109,40 @@ Notation "S '<⦂' T" := (constr_sub S T) (at level 29).
 (** - type equality constraint *)
 Notation "S '=⦂=' T" := (S <⦂ T ⋏ T <⦂ S) (at level 29).
 
+(** ** Reference to Bound Variables *)
+
+Inductive ctyp_ref_bound_tvar : ctyp -> nat -> Prop :=
+  | ctyp_tvar_rbt : forall n, ctyp_ref_bound_tvar (ctyp_tvar (tvar_b n)) n
+  | ctyp_rcd_rbt : forall n D,
+      cdec_ref_bound_tvar D n ->
+      ctyp_ref_bound_tvar (ctyp_rcd D) n
+  | ctyp_and1_rbt : forall n S T,
+      ctyp_ref_bound_tvar S n ->
+      ctyp_ref_bound_tvar (ctyp_and S T) n
+  | ctyp_and2_rbt : forall n S T,
+      ctyp_ref_bound_tvar T n ->
+      ctyp_ref_bound_tvar (ctyp_and S T) n
+  | ctyp_bnd_rbt : forall n T,
+      ctyp_ref_bound_tvar T n ->
+      ctyp_ref_bound_tvar (ctyp_bnd T) n
+  | ctyp_all1_rbt : forall n S T,
+      ctyp_ref_bound_tvar S n ->
+      ctyp_ref_bound_tvar (ctyp_all S T) n
+  | ctyp_all2_rbt : forall n S T,
+      ctyp_ref_bound_tvar T n ->
+      ctyp_ref_bound_tvar (ctyp_all S T) n
+with cdec_ref_bound_tvar : cdec -> nat -> Prop :=
+  | cdec_typ1_rbt : forall n A S T,
+      ctyp_ref_bound_tvar S n ->
+      cdec_ref_bound_tvar (cdec_typ A S T) n
+  | cdec_typ2_rbt : forall n A S T,
+      ctyp_ref_bound_tvar T n ->
+      cdec_ref_bound_tvar (cdec_typ A S T) n
+  | cdec_trm_rbt : forall n a T,
+      ctyp_ref_bound_tvar T n ->
+      cdec_ref_bound_tvar (cdec_trm a T) n
+.
+
 (** ** Opening *)
 
 Definition open_rec_tvar (k : nat) (u : var) (tv : tvar) : tvar :=
@@ -240,6 +274,34 @@ Definition open_constr_var (u : var) (C : constr) : constr := open_rec_constr_va
 Notation "C '^^t' u" := (open_constr_typ u C) (at level 30).
 Notation "C '^^v' u" := (open_constr_var u C) (at level 30).
 
+(** ** Free variables *)
+
+(** *** Functions for caculuating free type variables *)
+
+(** Free type variables in a type variable. *)
+Definition ftv_tvar (tv : tvar) : fset var :=
+  match tv with
+  | tvar_b _ => \{}
+  | tvar_f x => \{x}
+  end.
+
+Fixpoint ftv_ctyp (T : ctyp) : fset var :=
+  match T with
+  | ctyp_top => \{}
+  | ctyp_bot => \{}
+  | ctyp_tvar tv => ftv_tvar tv
+  | ctyp_rcd D => ftv_cdec D
+  | ctyp_and T U => ftv_ctyp T \u ftv_ctyp U
+  | ctyp_sel x T => \{}
+  | ctyp_bnd T => ftv_ctyp T
+  | ctyp_all T U => ftv_ctyp T \u ftv_ctyp U
+  end
+with ftv_cdec (D : cdec) : fset var :=
+  match D with
+  | cdec_typ A T U => ftv_ctyp T \u ftv_ctyp U
+  | cdec_trm a T => ftv_ctyp T
+  end.
+
 (** * Constraint Interpretation *)
 
 (** ** Ground assignments *)
@@ -255,6 +317,9 @@ Reserved Notation "es '⊢vv' x '⪯' y" (at level 40, x at level 59, y at level
 Reserved Notation "es '⊢vd' x '⪯' y" (at level 40, x at level 59, y at level 59).
 Reserved Notation "es '⊢vds' x '⪯' y" (at level 40, x at level 59, y at level 59).
 
+(** *** Mapping with ground assignments *)
+
+(** Map a constraint variable to concrete variable. *)
 Inductive map_cvar : vctx -> cvar -> var -> Prop :=
 | map_cvar_f : forall vm x y,
     binds x y vm ->
@@ -263,6 +328,7 @@ Inductive map_cvar : vctx -> cvar -> var -> Prop :=
     map_cvar vm (cvar_x x) x
 .
 
+(** Map a type containing type variables to a concrete type. *)
 Inductive map_ctyp : (tctx * vctx) -> ctyp -> typ -> Prop :=
 
 | map_ctyp_top : forall tm vm,
@@ -353,6 +419,43 @@ with   map_cdef_mut     := Induction for map_cdef Sort Prop
 with   map_cdefs_mut    := Induction for map_cdefs Sort Prop.
 Combined Scheme map_ctrm_mutind from map_ctrm_mut, map_cval_mut, map_cdef_mut, map_cdefs_mut.
 
+(** *** Properties of mapping *)
+
+Lemma map_tvar_tail : forall tm vm x T,
+    (tm & x ~ T, vm) ⊢t ctyp_tvar (tvar_f x) ⪯ T.
+Proof.
+  introv. constructor. apply binds_push_eq.
+Qed.
+
+Lemma map_tvar_tail_eq : forall tm vm x T T',
+    (tm & x ~ T, vm) ⊢t ctyp_tvar (tvar_f x) ⪯ T' ->
+    T = T'.
+Proof.
+  introv Hmx. inversion Hmx; subst.
+  symmetry. eapply binds_push_eq_inv. eauto.
+Qed.
+
+Lemma strengthen_map_ctyp : forall tm vm x T S S',
+    (tm & x ~ T, vm) ⊢t S ⪯ S' ->
+    x \notin ftv_ctyp S ->
+    (tm, vm) ⊢t S ⪯ S'
+with strengthen_map_cdec : forall tm vm x T D D',
+    (tm & x ~ T, vm) ⊢d D ⪯ D' ->
+    x \notin ftv_cdec D ->
+    (tm, vm) ⊢d D ⪯ D'.
+Proof.
+  all: introv Hmx Hn.
+  - induction S;
+      try (inversion Hmx; subst; constructor*);
+      try (apply* strengthen_map_ctyp; simpl in Hn; auto).
+    -- apply binds_concat_left_inv with (E2 := x ~ T); auto.
+       unfold notin. introv Hin. rewrite dom_single in Hin.
+       rewrite in_singleton in Hin. subst x0. simpl in Hn.
+       apply Hn. rewrite -> in_singleton. trivial.
+   - induction D; inversion Hmx; subst;
+       simpl in Hn; constructor; apply* strengthen_map_ctyp.
+Qed.
+
 Inductive satisfy_constr : (tctx * vctx * ctx) -> constr -> Prop :=
 
 | sat_true : forall tm vm G,
@@ -417,6 +520,12 @@ Ltac inv_sat :=
   end.
 
 Ltac inv_sat_all := repeat inv_sat.
+
+Ltac simpl_open_ctyp :=
+  unfold open_ctyp_typ, open_cdec_typ, open_ctyp_var, open_cdec_var; simpl.
+
+Ltac simpl_open_constr :=
+  unfold open_constr_typ, open_constr_var in *; simpl in *; try case_if.
 
 (** ** Entailment Laws *)
 (** ∀ C, ⊥ ⊩ C
@@ -533,3 +642,46 @@ Proof.
   introv Hn. apply* Hent.
 Qed.
 
+Lemma open_ctyp_typ_unchanged : forall u T,
+    ~ ctyp_ref_bound_tvar T 0 ->
+    open_ctyp_typ u T = T
+with open_cdec_typ_unchanged : forall u D,
+    ~ cdec_ref_bound_tvar D 0 ->
+    open_cdec_typ u D = D.
+Proof.
+  all: introv Hnr.
+  - induction T; try reflexivity; simpl_open_ctyp.
+    -- destruct t. reflexivity. simpl. case_if.
+      + subst. contradiction Hnr. constructor.
+      + reflexivity.
+    -- f_equal. apply* open_cdec_typ_unchanged. introv Hf.
+       apply Hnr. constructor*.
+    -- f_equal; try apply IHT1; try apply IHT2; introv Hf; apply Hnr.
+       + apply ctyp_and1_rbt. auto.
+       + apply ctyp_and2_rbt. auto.
+    -- f_equal. apply IHT. introv Hf. apply Hnr. constructor*.
+    -- f_equal; try apply IHT1; try apply IHT2; introv Hf; apply Hnr.
+       + apply* ctyp_all1_rbt.
+       + apply* ctyp_all2_rbt.
+  - induction D; unfold open_cdec_typ; simpl; f_equal.
+    -- apply open_ctyp_typ_unchanged. introv Hf. apply Hnr. constructor*.
+    -- apply open_ctyp_typ_unchanged. introv Hf. apply Hnr. apply* cdec_typ2_rbt.
+    -- apply open_ctyp_typ_unchanged. introv Hf. apply Hnr. constructor*.
+Qed.
+
+Lemma ent_sub_trans : forall S T,
+    ~ ctyp_ref_bound_tvar S 0 -> ~ ctyp_ref_bound_tvar T 0 ->
+    ∃t (S <⦂ (ctyp_tvar (tvar_b 0)) ⋏ (ctyp_tvar (tvar_b 0)) <⦂ T) ⊩ S <⦂ T.
+Proof.
+  introv Hs Ht. introe. inv_sat. simpl_open_constr.
+  pick_fresh_gen (L \u ftv_ctyp S \u ftv_ctyp T) x. assert (x \notin L) as Hx by auto.
+  specialize (H2 x Hx).
+  pose proof (open_ctyp_typ_unchanged x Hs) as Heqs.
+  unfold open_ctyp_typ in Heqs. rewrite -> Heqs in *.
+  pose proof (open_ctyp_typ_unchanged x Ht) as Heqt.
+  unfold open_ctyp_typ in Heqt. rewrite -> Heqt in *.
+  inv_sat. inv_sat. inv_sat.
+  apply map_tvar_tail_eq in H5. apply map_tvar_tail_eq in H10.
+  subst S' T'0. assert (G ⊢ S'0 <: T') as Hsub. eauto.
+  apply sat_sub with (S' := S'0) (T' := T'); try apply* strengthen_map_ctyp. auto.
+Qed.

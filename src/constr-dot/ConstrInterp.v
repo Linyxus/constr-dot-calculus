@@ -206,4 +206,3 @@ Inductive satisfy_constr : (tctx * vctx * ctx) -> constr -> Prop :=
 where "e '⊧' C" := (satisfy_constr e C).
 
 Hint Constructors satisfy_constr constr.
-

@@ -6,7 +6,7 @@
 
 Set Implicit Arguments.
 
-Require Import ConstrLang Definitions Subenvironments RecordAndInertTypes.
+Require Import ConstrLangAlt ConstrEntailment Definitions Subenvironments RecordAndInertTypes.
 
 (** * Typing Rules *)
 
@@ -96,18 +96,21 @@ Inductive cty_trm : constr -> ctx -> trm -> typ -> Prop :=
     [C ⊩ S <: T] #<br>#
     [――――――――――] #<br>#
     [C, G ⊢c t: U]   *)
-| ty_sub : forall C G t T U,
-    C, G ⊢c t : T ->
-    C ⊩ ctyp_typ T <⦂ ctyp_typ U ->
-    C, G ⊢c t : U
+| ty_sub : forall C G t T T' U U',
+    C, G ⊢c t : T' ->
+    T ⩭ T' ->
+    U ⩭ U' ->
+    C ⊩ T <⦂ U ->
+    C, G ⊢c t : U'
 
 (** [C, G ⊢c t: T]   #<br>#
     [C ⋏ t: T, G ⊢c u: U] #<br>#
     [――――――――――] #<br>#
     [C, G ⊢c u: U]   *)
-| ty_constr_intro : forall C G t u T U,
-    C, G ⊢c t : T ->
-    (C ⋏ t ⦂ T), G ⊢c u : U ->
+| ty_constr_intro : forall C G x u T T' U,
+    T ⩭ T' ->
+    C, G ⊢c trm_var (avar_f x) : T' ->
+    (C ⋏ ctrm_cvar (cvar_x x) ⦂ T), G ⊢c u : U ->
     C, G ⊢c u : U
 where "C ',' G '⊢c' t ':' T" := (cty_trm C G t T)
 

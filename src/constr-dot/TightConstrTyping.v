@@ -16,6 +16,7 @@ Require Import Coq.Program.Equality.
 (** * Tight Typing Rules with Constraints *)
 
 Reserved Notation "e '⊢c#' t ':' T" (at level 39, t at level 59).
+Reserved Notation "e '⊢c#' T '<:' U" (at level 39, T at level 59).
 
 (** ** Term typing [G ⊢c# t: T] *)
 Inductive cty_trm_t : (constr * ctx) -> trm -> typ -> Prop :=
@@ -99,43 +100,58 @@ Inductive cty_trm_t : (constr * ctx) -> trm -> typ -> Prop :=
     [C ⊩ S <: T] #<br>#
     [――――――――――] #<br>#
     [C, G ⊢c t: U]   *)
-| cty_sub_t : forall C G t T U T' U',
-    T ⩭ T' ->
-    U ⩭ U' ->
-    (C, G) ⊢c# t : T' ->
-    C ⊩# T <⦂ U ->
-    (C, G) ⊢c# t : U'
-
-(** [C, G ⊢c t: T]   #<br>#
-    [C ⋏ t: T, G ⊢c u: U] #<br>#
+| cty_sub_t : forall C G t T U,
+    (C, G) ⊢c# t : T ->
+    (C, G) ⊢c# T <: U ->
+    (C, G) ⊢c# t : U
+where "e '⊢c#' t ':' T" := (cty_trm_t e t T)
+with csubtyp_t : (constr * ctx) -> typ -> typ -> Prop :=
+(** [C, G ⊢c x: S]   #<br>#
+    [C ⋏ x: S, G ⊢c T <: U] #<br>#
     [――――――――――] #<br>#
-    [C, G ⊢c u: U]   *)
-| cty_constr_intro_t : forall C G x u T T' U,
+    [C, G ⊢c T <: U]   *)
+| csubtyp_intro_t : forall C G x S S' T U,
+    S ⩭ S' ->
+    (C, G) ⊢c# trm_var (avar_f x) : S' ->
+    (C ⋏ ctrm_cvar (cvar_x x) ⦂ S, G) ⊢c# T <: U ->
+    (C, G) ⊢c# T <: U
+(** [C ⊩ T <: U]   #<br>#
+    [――――――――――] #<br>#
+    [C, G ⊢c T <: U]   *)
+| csubtyp_inst_t : forall C G S S' T T',
+    S ⩭ S' ->
     T ⩭ T' ->
-    (C, G) ⊢c# trm_var (avar_f x) : T' ->
-    (C ⋏ ctrm_cvar (cvar_x x) ⦂ T, G) ⊢c# u : U ->
-    (C, G) ⊢c# u : U
-where "e '⊢c#' t ':' T" := (cty_trm_t e t T).
+    C ⊩# S <⦂ T ->
+    (C, G) ⊢c# S' <: T'
+where "e '⊢c#' T '<:' U" := (csubtyp_t e T U).
 
-Hint Constructors cty_trm_t.
+Hint Constructors cty_trm_t csubtyp_t.
+
+Scheme cts_ty_trm_t_mut := Induction for cty_trm_t Sort Prop
+with   cts_subtyp_t     := Induction for csubtyp_t Sort Prop.
+Combined Scheme cts_t_mutind from cts_ty_trm_t_mut, cts_subtyp_t.
 
 (** * Equivalence Theorems *)
 
-Theorem tight_to_general_constr_typing : forall C G t T,
-    (C, G) ⊢c# t: T ->
-    (C, G) ⊢c t: T.
+(** Tight typing implies general typing. *)
+Lemma tight_to_general_constr_typing:
+  (forall e t T,
+     e ⊢c# t : T ->
+     e ⊢c t : T) /\
+  (forall e S U,
+     e ⊢c# S <: U ->
+     e ⊢c S <: U).
 Proof.
-  introv Ht. dependent induction Ht; eauto.
-  specialize (IHHt C G eq_refl).
-  apply* cty_sub. apply* tight_to_general_entailment.
+  apply cts_t_mutind; intros; subst; eauto using tight_to_general_entailment.
 Qed.
 
-Theorem general_to_tight_constr_typing : forall C G t T,
-    (C, G) ⊢c t: T ->
-    (C, G) ⊢c# t: T.
+Theorem general_to_tight_constr_typing :
+  (forall e t T,
+     e ⊢c t : T ->
+     e ⊢c# t : T) /\
+  (forall e S U,
+     e ⊢c S <: U ->
+     e ⊢c# S <: U).
 Proof.
-  introv Ht. dependent induction Ht; eauto.
-  specialize (IHHt C G eq_refl).
-  eapply cty_sub_t. exact H. exact H0. assumption.
-  apply* general_to_tight_entailment.
+  apply cts_mutind; intros; subst; eauto using general_to_tight_entailment.
 Qed.

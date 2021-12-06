@@ -13,6 +13,7 @@ Require Import ConstrLangAlt ConstrInterp ConstrEntailment Definitions Subenviro
 Reserved Notation "e '⊢c' t ':' T" (at level 39, t at level 59).
 Reserved Notation "e '/-c' d : D" (at level 39, d at level 59).
 Reserved Notation "e '/-c' ds :: D" (at level 39, ds at level 59).
+Reserved Notation "e '⊢c' T '<:' U" (at level 39, T at level 59).
 
 (** ** Term typing [G ⊢c t: T] *)
 Inductive cty_trm : (constr * ctx) -> trm -> typ -> Prop :=
@@ -96,22 +97,10 @@ Inductive cty_trm : (constr * ctx) -> trm -> typ -> Prop :=
     [C ⊩ S <: T] #<br>#
     [――――――――――] #<br>#
     [C, G ⊢c t: U]   *)
-| cty_sub : forall C G t T T' U U',
-    (C, G) ⊢c t : T' ->
-    T ⩭ T' ->
-    U ⩭ U' ->
-    C ⊩ T <⦂ U ->
-    (C, G) ⊢c t : U'
-
-(** [C, G ⊢c t: T]   #<br>#
-    [C ⋏ t: T, G ⊢c u: U] #<br>#
-    [――――――――――] #<br>#
-    [C, G ⊢c u: U]   *)
-| cty_constr_intro : forall C G x u T T' U,
-    T ⩭ T' ->
-    (C, G) ⊢c trm_var (avar_f x) : T' ->
-    (C ⋏ ctrm_cvar (cvar_x x) ⦂ T, G) ⊢c u : U ->
-    (C, G) ⊢c u : U
+| cty_sub : forall C G t T U,
+    (C, G) ⊢c t : T ->
+    (C, G) ⊢c T <: U ->
+    (C, G) ⊢c t : U
 where "e '⊢c' t ':' T" := (cty_trm e t T)
 
 (** ** Single-definition typing [G ⊢ d: D] *)
@@ -147,12 +136,42 @@ with cty_defs : (constr * ctx) -> defs -> typ -> Prop :=
     (C, G) /-c d : D ->
     defs_hasnt ds (label_of_def d) ->
     (C, G) /-c defs_cons ds d :: typ_and T (typ_rcd D)
-where "e '/-c' ds '::' T" := (cty_defs e ds T).
+where "e '/-c' ds '::' T" := (cty_defs e ds T)
 
-Hint Constructors cty_trm cty_def cty_defs.
+with csubtyp : (constr * ctx) -> typ -> typ -> Prop :=
+(** [C, G ⊢c x: S]   #<br>#
+    [C ⋏ x: S, G ⊢c T <: U] #<br>#
+    [――――――――――] #<br>#
+    [C, G ⊢c T <: U]   *)
+| csubtyp_intro : forall C G x S S' T U,
+    S ⩭ S' ->
+    (C, G) ⊢c trm_var (avar_f x) : S' ->
+    (C ⋏ ctrm_cvar (cvar_x x) ⦂ S, G) ⊢c T <: U ->
+    (C, G) ⊢c T <: U
+(** [C ⊩ T <: U]   #<br>#
+    [――――――――――] #<br>#
+    [C, G ⊢c T <: U]   *)
+| csubtyp_inst : forall C G S S' T T',
+    S ⩭ S' ->
+    T ⩭ T' ->
+    C ⊩ S <⦂ T ->
+    (C, G) ⊢c S' <: T'
+where "e '⊢c' T '<:' U" := (csubtyp e T U).
 
+Hint Constructors cty_trm cty_def cty_defs csubtyp.
 
-Definition well_typed_constr C G t T :=
+Scheme cts_ty_trm_mut := Induction for cty_trm Sort Prop
+with   cts_subtyp     := Induction for csubtyp Sort Prop.
+Combined Scheme cts_mutind from cts_ty_trm_mut, cts_subtyp.
+
+Scheme crules_trm_mut    := Induction for cty_trm Sort Prop
+with   crules_def_mut    := Induction for cty_def Sort Prop
+with   crules_defs_mut   := Induction for cty_defs Sort Prop
+with   crules_subtyp     := Induction for csubtyp Sort Prop.
+Combined Scheme crules_mutind from crules_trm_mut, crules_def_mut, crules_defs_mut, crules_subtyp.
+
+(** ** Well-typed programs *)
+Definition compatible_constr C G t T :=
   exists tm vm, (tm, vm, G) ⊧ C /\ (C, G) ⊢c t: T.
 
 (* (** ⊤, (x: {A: {X: ⊥..T1}..{X: ⊥..T2}}, y: T1) ⊢c y: T2 *) *)

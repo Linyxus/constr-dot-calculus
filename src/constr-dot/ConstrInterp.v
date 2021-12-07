@@ -9,6 +9,8 @@ Set Implicit Arguments.
 Require Import TLC.LibLN.
 Require Import String.
 
+Require Import Coq.Program.Equality.
+
 Require Import Definitions RecordAndInertTypes Decompose ConstrLangAlt.
 
 (** * Constraint Interpretation *)
@@ -165,6 +167,45 @@ Proof.
        simpl in Hn; constructor; apply* strengthen_map_ctyp.
 Qed.
 
+Lemma map_iso_ctyp : forall tm vm T T',
+    T ⩭ T' ->
+    (tm, vm) ⊢t T ⪯ T'
+with map_iso_cdec : forall tm vm D D',
+    iso_cdec_dec D D' ->
+    (tm, vm) ⊢d D ⪯ D'.
+Proof.
+  all: introv Hc.
+  - dependent induction Hc; try constructor; try apply IHHc1; try apply IHHc2;
+      try apply IHHc.
+    -- apply* map_iso_cdec.
+    -- constructor.
+  - dependent induction Hc; try constructor; try apply IHHc;
+      try apply* map_iso_ctyp.
+Qed.
+
+Lemma map_iso_ctyp_eq : forall tm vm T T1 T2,
+    T ⩭ T1 ->
+    (tm, vm) ⊢t T ⪯ T2 ->
+    T1 = T2
+with map_iso_cdec_eq : forall tm vm D D1 D2,
+    iso_cdec_dec D D1 ->
+    (tm, vm) ⊢d D ⪯ D2 ->
+    D1 = D2.
+Proof.
+  all: introv Hc Hm.
+  - gen T2. dependent induction Hc; introv Hm.
+    -- inversion Hm; subst. reflexivity.
+    -- inversion Hm; subst. reflexivity.
+    -- inversion Hm; subst. f_equal. apply* map_iso_cdec_eq.
+    -- inversion Hm; subst. f_equal; try apply* IHHc1. apply* IHHc2.
+    -- inversion Hm; subst. f_equal. inversion H4; subst. reflexivity.
+    -- inversion Hm; subst. f_equal. apply* IHHc.
+    -- inversion Hm; subst. f_equal. apply* IHHc1. apply* IHHc2.
+  - gen D2. dependent induction Hc; introv Hm.
+    -- inversion Hm; subst. f_equal; apply* map_iso_ctyp_eq.
+    -- inversion Hm; subst. f_equal. apply* map_iso_ctyp_eq.
+Qed.
+
 Inductive satisfy_constr : (tctx * vctx * ctx) -> constr -> Prop :=
 
 | sat_true : forall tm vm G,
@@ -206,3 +247,8 @@ Inductive satisfy_constr : (tctx * vctx * ctx) -> constr -> Prop :=
 where "e '⊧' C" := (satisfy_constr e C).
 
 Hint Constructors satisfy_constr constr.
+
+Definition constr_satisfiable (C : constr) (G : ctx) :=
+  exists tm vm, (tm, vm, G) ⊧ C.
+
+Notation "G '⊨' C" := (constr_satisfiable C G) (at level 40).

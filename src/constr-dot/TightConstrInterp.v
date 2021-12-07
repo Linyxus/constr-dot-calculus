@@ -79,3 +79,8 @@ Proof.
   - apply* sat_typ_t. apply* general_to_tight.
   - apply* sat_sub_t. apply* general_to_tight.
 Qed.
+
+Definition tight_constr_satisfiable (C : constr) (G : ctx) :=
+  exists tm vm, (tm, vm, G) ⊧# C.
+
+Notation "G '⊨#' C" := (tight_constr_satisfiable C G) (at level 40).

@@ -145,7 +145,7 @@ with csubtyp : (constr * ctx) -> typ -> typ -> Prop :=
     [C, G ⊢c T <: U]   *)
 | csubtyp_intro : forall C G x S S' T U,
     S ⩭ S' ->
-    (C, G) ⊢c trm_var (avar_f x) : S' ->
+    binds x S' G ->
     (C ⋏ ctrm_cvar (cvar_x x) ⦂ S, G) ⊢c T <: U ->
     (C, G) ⊢c T <: U
 (** [C ⊩ T <: U]   #<br>#

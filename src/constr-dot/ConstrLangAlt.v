@@ -336,3 +336,4 @@ with iso_cdec_dec : cdec -> dec -> Prop :=
     iso_cdec_dec (cdec_trm a T) (dec_trm a T')
 .
 
+Hint Constructors iso_ctyp_typ iso_cdec_dec.

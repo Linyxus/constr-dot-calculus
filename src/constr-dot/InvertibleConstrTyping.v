@@ -456,13 +456,24 @@ Qed.
 Lemma tight_to_constr_subtyping_and2_aux : forall C G S S' T T' U,
     S ⩭ S' ->
     T ⩭ T' ->
-    C ⊩ S <⦂ T ->
+    C ⊩# S <⦂ T ->
     (C, G) ⊢c# S' <: U ->
     (C, G) ⊢c# S' <: typ_and T' U.
 Proof.
   introv Hs Ht Hst Hsu.
   dependent induction Hsu.
-  - 
+  - eapply weaken_constr_tight_subtyping.
+    apply H. eassumption.
+    apply~ IHHsu.
+    eapply tight_ent_trans.
+    apply tight_ent_and_elim1. assumption.
+  -
+    Ltac subst_eq_iso_ctyp T' :=
+      match goal with
+      | H1 : ?T1 ⩭ T', H2 : ?T2 ⩭ T' |- _ =>
+          idtac H1; idtac H2; specialize (iso_ctyp_unique H1 H2) as ?H; subst; clear H1
+      end.
+    subst_eq_iso_ctyp S'.
 Admitted.
 
 Lemma tight_to_constr_subtyping_and2 : forall C G S T U,

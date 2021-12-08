@@ -156,6 +156,7 @@ Hint Constructors cty_var_inv cty_val_inv.
 (** ** Equivelence theorems *)
 
 Lemma extended_constr_tight_satisfy : forall tm vm G C x T T',
+    (* TODO change to correspond *)
     T ⩭ T' ->
     (tm, vm, G) ⊧# C ->
     binds x T' G ->
@@ -401,6 +402,7 @@ Proof.
     apply* invertible_constr_typing_closure_tight_aux.
 Qed.
 
+(** ** Tight to invertible theorem: |-c# to |-c## *)
 Theorem tight_to_invertible_constr_typing : forall C G U x,
     inert G ->
     G ⊨# C ->
@@ -412,5 +414,175 @@ Proof.
   - specialize (IHHt x G Hi C Hs eq_refl eq_refl). inversion IHHt; subst; eauto.
   - specialize (IHHt x G Hi C Hs eq_refl eq_refl).
     apply* invertible_constr_typing_closure_tight.
+Qed.
+
+Lemma strengthen_constr_invertible_v : forall C1 C2 G v T,
+    C1 ⊩# C2 ->
+    (C2, G) ⊢c##v v : T ->
+    (C1, G) ⊢c##v v : T.
+Proof.
+  introv He HT.
+  dependent induction HT; eauto.
+  - inversion H; subst; eauto.
+    -- apply cty_precise_inv_v. apply cty_all_intro_p with L.
+       introv Hne. apply* strengthen_constr_general_typing.
+       apply* tight_to_general_entailment.
+    -- apply cty_precise_inv_v. apply cty_new_intro_p with L.
+       introv Hne. apply* strengthen_constr_general_typing_defs.
+       apply* tight_to_general_entailment.
+  - apply cty_all_inv_v with L S T.
+    apply* IHHT.
+    apply* strengthen_constr_tight_subtyping.
+    introv Hne. apply* strengthen_constr_general_subtyping.
+    apply* tight_to_general_entailment.
+Qed.
+
+
+Theorem weaken_constr_subtyping : forall x S S' C G T U,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x x) ⦂ S, G) ⊢c T <: U ->
+    (C, G) ⊢c T <: U.
+Proof.
+  introv Hiso Hx HT.
+  eapply csubtyp_intro. exact Hiso. exact Hx. exact HT.
+Qed.
+
+
+Theorem weaken_constr_general_typing : forall x S S' C G t T,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x x) ⦂ S, G) ⊢c t : T ->
+    (C, G) ⊢c t : T
+with weaken_constr_general_typing_def : forall x S S' C G d D,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x x) ⦂ S, G) /-c d : D ->
+    (C, G) /-c d : D
+with weaken_constr_general_typing_defs : forall x S S' C G ds D,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x x) ⦂ S, G) /-c ds :: D ->
+    (C, G) /-c ds :: D.
+Proof.
+  all: introv Hiso Hb HT.
+  - dependent induction HT.
+    -- constructor. exact H.
+    -- apply cty_all_intro with (L \u \{x}). eauto.
+    -- apply cty_all_elim with S0. apply* IHHT1.
+       apply* IHHT2.
+    -- apply cty_new_intro with (L \u \{x}). intros y Hne.
+       eapply weaken_constr_general_typing_defs.
+       apply Hiso.
+       assert (Hb' : binds x S' (G & y ~ open_typ y T)) by eauto.
+       exact Hb'. apply~ H.
+    -- apply cty_new_elim. apply* IHHT.
+    -- apply cty_let with (L \u \{x}) T. apply* IHHT. intros y Hne.
+       apply~ H0. exact Hiso. eauto.
+    -- apply cty_rec_intro. apply* IHHT.
+    -- apply cty_rec_elim. apply* IHHT.
+    -- apply cty_and_intro. apply* IHHT1. apply* IHHT2.
+    -- apply cty_sub with T. apply* IHHT. eapply weaken_constr_subtyping.
+       apply Hiso. apply Hb. apply H.
+  - dependent induction HT.
+    -- apply cty_def_typ.
+    -- apply cty_def_trm. eapply weaken_constr_general_typing.
+       exact Hiso. exact Hb. exact H.
+  - dependent induction HT.
+    -- apply cty_defs_one. eapply weaken_constr_general_typing_def.
+       exact Hiso. exact Hb. exact H.
+    -- apply cty_defs_cons. apply* IHHT. eapply weaken_constr_general_typing_def; eassumption.
+       exact H0.
+Qed.
+
+Theorem weaken_constr_precise_typing : forall x S S' C G v T,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x x) ⦂ S, G) ⊢c!v v : T ->
+    (C, G) ⊢c!v v : T.
+Proof.
+  introv Hiso Hb HT.
+  dependent induction HT.
+  - apply cty_all_intro_p with (L \u \{x}). introv Hne.
+    eapply weaken_constr_general_typing; eauto.
+  - apply cty_new_intro_p with (L \u \{x}). intros y Hne.
+    eapply weaken_constr_general_typing_defs; eauto.
+Qed.
+
+Theorem weaken_constr_invertible_typing_v : forall x S S' C G v T,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x x) ⦂ S, G) ⊢c##v v : T ->
+    (C, G) ⊢c##v v : T.
+Proof.
+  introv Hiso Hb HT.
+  dependent induction HT; eauto.
+  - inversion H; subst.
+    -- apply cty_precise_inv_v.
+       eapply weaken_constr_precise_typing. exact Hiso.
+       exact Hb. assumption.
+    -- apply cty_precise_inv_v.
+       eapply weaken_constr_precise_typing. exact Hiso.
+       exact Hb. assumption.
+  -
+  apply cty_all_inv_v with (L \u \{x}) S0 T; eauto.
+Qed.
+
+Theorem invertible_constr_typing_closure_tight_v_aux : forall C G v T U,
+    inert G ->
+    (C, G) ⊢c##v v : T ->
+    G ⊢# T <: U ->
+    (C, G) ⊢c##v v : U.
+Proof.
+  introv Hi HT Hsub.
+  dependent induction Hsub; eauto.
+  - inversions HT; subst.
+    inversions H3.
+  - inversion HT; subst; auto. inversion H3.
+  - inversion HT; subst; auto. inversion H3.
+  - inversions HT; subst. inversion H3.
+  - inversions HT. inversions H3.
+  - inversions HT.
+    + inversions H4.
+    + lets Hu: (x_bound_unique H H6). subst.
+      pose proof (pf_inert_unique_tight_bounds Hi H H6) as Hu. subst. assumption.
+  - apply cty_all_inv_v with L S1 T1; eauto.
+    apply* tight_to_constr_subtyping.
+    introv Hn. specialize (H y Hn).
+    apply* general_to_constr_subtyping.
+Qed.
+
+Theorem invertible_constr_typing_closure_tight_v : forall C G v T U,
+    inert G ->
+    G ⊨# C ->
+    (C, G) ⊢c##v v : T ->
+    (C, G) ⊢c# T <: U ->
+    (C, G) ⊢c##v v : U.
+Proof.
+  introv Hi Hsat HT Hsub.
+  dependent induction Hsub.
+  - specialize (IHHsub G Hi (C ⋏ ctrm_cvar (cvar_x x) ⦂ S)).
+    assert (Hsat' : G ⊨# C ⋏ ctrm_cvar (cvar_x x) ⦂ S) by apply* extended_constr_tight_satisfiable.
+    specialize (IHHsub Hsat').
+    assert (HT' : (C ⋏ ctrm_cvar (cvar_x x) ⦂ S, G) ⊢c##v v : T). {
+      apply* strengthen_constr_invertible_v.
+      apply* tight_ent_and_elim1.
+    }
+    specialize (IHHsub HT' eq_refl).
+    eapply weaken_constr_invertible_typing_v. exact H. exact H0. assumption.
+  - apply* invertible_constr_typing_closure_tight_v_aux.
+    apply* constr_to_tight_subtyping.
+Qed.
+
+Theorem tight_to_invertible_constr_typing_v : forall C G v T,
+    inert G ->
+    G ⊨# C ->
+    (C, G) ⊢c# trm_val v : T ->
+    (C, G) ⊢c##v v : T.
+Proof.
+  introv Hgd Hsat Hty.
+  dependent induction Hty; eauto.
+  specialize (IHHty v G Hgd C Hsat eq_refl eq_refl).
+  apply* invertible_constr_typing_closure_tight_v.
 Qed.
 

@@ -31,10 +31,10 @@ Reserved Notation "es '⊢vds' x '⪯' y" (at level 40, x at level 59, y at leve
 (** *** Mapping with ground assignments *)
 
 (** Map a constraint variable to concrete variable. *)
-Inductive map_cvar : vctx -> cvar -> var -> Prop :=
+Inductive map_cvar : vctx -> cvar -> avar -> Prop :=
 | map_cvar_f : forall vm x y,
     binds x y vm ->
-    map_cvar vm (cvar_f x) y
+    map_cvar vm (cvar_f x) (avar_f x)
 | map_cvar_x : forall vm x,
     map_cvar vm (cvar_x x) x
 .
@@ -63,7 +63,7 @@ Inductive map_ctyp : (tctx * vctx) -> ctyp -> typ -> Prop :=
 
 | map_ctyp_sel : forall tm vm x y T,
     map_cvar vm x y ->
-    (tm, vm) ⊢t ctyp_sel x T ⪯ typ_sel (avar_f y) T
+    (tm, vm) ⊢t ctyp_sel x T ⪯ typ_sel y T
 
 | map_ctyp_bnd : forall tm vm T T',
     (tm, vm) ⊢t T ⪯ T' ->
@@ -88,7 +88,7 @@ where "es '⊢d' D1 '⪯' D2" := (map_cdec es D1 D2).
 Inductive map_ctrm : (tctx * vctx) -> ctrm -> trm -> Prop :=
 | map_ctrm_cvar : forall tm vm x y,
     map_cvar vm x y ->
-    (tm, vm) ⊢v ctrm_cvar x ⪯ trm_var (avar_f y)
+    (tm, vm) ⊢v ctrm_cvar x ⪯ trm_var y
 | map_ctrm_val : forall tm vm v v',
     map_cval (tm, vm) v v' ->
     (tm, vm) ⊢v ctrm_val v ⪯ trm_val v'
@@ -131,6 +131,34 @@ with   map_cdefs_mut    := Induction for map_cdefs Sort Prop.
 Combined Scheme map_ctrm_mutind from map_ctrm_mut, map_cval_mut, map_cdef_mut, map_cdefs_mut.
 
 (** *** Properties of mapping *)
+
+Lemma map_ctyp_unique_typ : forall tm vm T T1 T2,
+    (tm, vm) ⊢t T ⪯ T1 ->
+    (tm, vm) ⊢t T ⪯ T2 ->
+    T1 = T2
+with map_cdec_unique_dec : forall tm vm D D1 D2,
+    (tm, vm) ⊢d D ⪯ D1 ->
+    (tm, vm) ⊢d D ⪯ D2 ->
+    D1 = D2.
+Proof.
+  all: introv Hm1 Hm2.
+  - dependent induction T; inversion Hm1; inversion Hm2; subst; trivial; try f_equal.
+    -- inversion H7; subst. eapply binds_functional; eassumption.
+    -- apply~ map_cdec_unique_dec; eassumption.
+    -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
+    -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
+    -- destruct c.
+       + inversion H4; inversion H10; subst. f_equal.
+       + inversion H4; inversion H10; subst.
+       + inversion H4; inversion H10; subst. trivial.
+    -- apply~ IHT.
+    -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
+    -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
+  - dependent induction D; inversion Hm1; inversion Hm2; subst; f_equal.
+    -- eapply map_ctyp_unique_typ; eassumption.
+    -- eapply map_ctyp_unique_typ; eassumption.
+    -- eapply map_ctyp_unique_typ; eassumption.
+Qed.
 
 Lemma map_tvar_tail : forall tm vm x T,
     (tm & x ~ T, vm) ⊢t ctyp_tvar (tvar_f x) ⪯ T.

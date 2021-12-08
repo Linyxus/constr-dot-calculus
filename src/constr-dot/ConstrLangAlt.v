@@ -17,7 +17,7 @@ Require Import Definitions RecordAndInertTypes Decompose.
 Inductive cvar : Set :=
   | cvar_f : var -> cvar
   | cvar_b : nat -> cvar
-  | cvar_x : var -> cvar.
+  | cvar_x : avar -> cvar.
 
 Inductive tvar : Set :=
   | tvar_f : var -> tvar
@@ -317,7 +317,7 @@ Inductive iso_ctyp_typ : ctyp -> typ -> Prop :=
     U ⩭ U' ->
     ctyp_and T U ⩭ typ_and T' U'
 | iso_ctyp_sel : forall x A,
-    ctyp_sel (cvar_x x) A ⩭ typ_sel (avar_f x) A
+    ctyp_sel (cvar_x x) A ⩭ typ_sel x A
 | iso_ctyp_bnd : forall T T',
     T ⩭ T' ->
     ctyp_bnd T ⩭ typ_bnd T'

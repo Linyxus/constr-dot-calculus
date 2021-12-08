@@ -25,6 +25,11 @@ Definition constr_entail_t (C1 C2 : constr) :=
 
 Notation "C '⊩#' D" := (constr_entail_t C D) (at level 50).
 
+Ltac introe_t :=
+  match goal with
+  | |- _ => introv Hi He
+  end.
+
 (** * Equivalence Theorems *)
 
 Theorem tight_to_general_entailment : forall C1 C2,
@@ -44,3 +49,4 @@ Proof.
   apply* Ht.
   apply* tight_to_general_interp.
 Qed.
+

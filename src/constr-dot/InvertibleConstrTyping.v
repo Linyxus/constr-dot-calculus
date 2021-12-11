@@ -487,7 +487,8 @@ Proof.
     eapply weaken_constr_tight_subtyping. exact H. exact H0.
     apply IHHst. eapply strengthen_constr_tight_subtyping.
     apply tight_ent_and_elim1. exact Hsu.
-  - 
+  - admit.
+Admitted.
 
 Lemma tight_to_constr_subtyping_aux : forall G T U,
     G ⊢# T <: U ->

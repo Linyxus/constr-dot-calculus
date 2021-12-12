@@ -68,3 +68,59 @@ Proof.
     -- constructor. apply* weaken_constr_typing_defs. apply* weaken_constr_typing_def.
        assumption.
 Qed.
+
+Theorem subtyping_weaken_constr : forall x S S' C G T U,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) ⊢c T <: U ->
+    (C, G) ⊢c T <: U.
+Proof.
+  introv Hiso Hx HT.
+  eapply csubtyp_intro. exact Hiso. exact Hx. exact HT.
+Qed.
+
+Theorem typing_weaken_constr : forall x S S' C G t T,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) ⊢c t : T ->
+    (C, G) ⊢c t : T
+with typing_def_weaken_constr : forall x S S' C G d D,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) /-c d : D ->
+    (C, G) /-c d : D
+with typing_defs_weaken_constr : forall x S S' C G ds D,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) /-c ds :: D ->
+    (C, G) /-c ds :: D.
+Proof.
+  all: introv Hiso Hb HT.
+  - dependent induction HT.
+    -- constructor. exact H.
+    -- apply cty_all_intro with (L \u \{x}). eauto.
+    -- apply cty_all_elim with S0. apply* IHHT1.
+       apply* IHHT2.
+    -- apply cty_new_intro with (L \u \{x}). intros y Hne.
+       eapply typing_defs_weaken_constr.
+       apply Hiso.
+       assert (Hb' : binds x S' (G & y ~ open_typ y T)) by eauto.
+       exact Hb'. apply~ H.
+    -- apply cty_new_elim. apply* IHHT.
+    -- apply cty_let with (L \u \{x}) T. apply* IHHT. intros y Hne.
+       apply~ H0. exact Hiso. eauto.
+    -- apply cty_rec_intro. apply* IHHT.
+    -- apply cty_rec_elim. apply* IHHT.
+    -- apply cty_and_intro. apply* IHHT1. apply* IHHT2.
+    -- apply cty_sub with T. apply* IHHT. eapply subtyping_weaken_constr.
+       apply Hiso. apply Hb. apply H.
+  - dependent induction HT.
+    -- apply cty_def_typ.
+    -- apply cty_def_trm. eapply typing_weaken_constr.
+       exact Hiso. exact Hb. exact H.
+  - dependent induction HT.
+    -- apply cty_defs_one. eapply typing_def_weaken_constr.
+       exact Hiso. exact Hb. exact H.
+    -- apply cty_defs_cons. apply* IHHT. eapply typing_def_weaken_constr; eassumption.
+       exact H0.
+Qed.

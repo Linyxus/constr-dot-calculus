@@ -6,6 +6,7 @@
 
 Set Implicit Arguments.
 
+Require Import TLC.LibList.
 Require Import Coq.Program.Equality String.
 Require Import Definitions Weakening Narrowing RecordAndInertTypes.
 Require Import ConstrLangAlt ConstrTyping ConstrWeakening ConstrSubenvironments.
@@ -73,6 +74,20 @@ Proof.
     subst. assumption.
 Qed.
 
+Inductive min_complete : constr -> ctx -> Prop :=
+| min_complete_nil : min_complete ⊤ nil
+| min_complete_grow : forall x T T' C G,
+    T ⩭ T' ->
+    min_complete C G ->
+    min_complete (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ T) (G & x ~ T').
+
+Lemma ent_csubtyp_equiv : forall D G C T T' U U',
+    min_complete D G ->
+    T ⩭ T' ->
+    U ⩭ U' ->
+    (C ⋏ D ⊩ T <⦂ U <-> (C, G) ⊢c T' <: U').
+Admitted.
+
 Lemma narrow_constr_subtyping : forall C G G' T U,
     (C, G) ⊢c T <: U ->
     C ⊩e G' ⪯ G ->
@@ -87,7 +102,9 @@ Proof.
       destruct (csubenv_binds_inv H0 Hsub) as [t [Hbt Ht]].
       destruct (iso_ctyp_exists t) as [t' Hiso].
       eapply csubtyp_intro. exact Hiso. exact Hbt.
-      eapply strengthen_constr_general_subtyping; try apply IHHTU.
+      destruct (iso_ctyp_exists T) as [T' Hiso'].
+      (* eapply strengthen_constr_general_subtyping; try apply IHHTU. *)
+      admit.
     - eauto.
 Admitted.
 
@@ -127,6 +144,7 @@ Proof.
     -- eapply cty_rec_intro. apply* IHHT.
     -- eapply cty_rec_elim. apply* IHHT.
     -- eapply cty_and_intro. apply* IHHT1. apply* IHHT2.
+    -- eapply cty_sub. apply* IHHT. apply* narrow_constr_subtyping.
   - dependent induction HT; constructor. apply* narrow_constr_typing.
   - dependent induction HT; constructor; try apply* narrow_constr_typing_def.
     apply* IHHT. assumption.

@@ -6,6 +6,7 @@
 
 Set Implicit Arguments.
 
+Require Import Coq.Program.Equality.
 Require Import Definitions RecordAndInertTypes Decompose.
 
 (** * Abstract Syntax for Constraint Language *)
@@ -337,3 +338,46 @@ with iso_cdec_dec : cdec -> dec -> Prop :=
 .
 
 Hint Constructors iso_ctyp_typ iso_cdec_dec.
+
+Theorem iso_ctyp_exists : forall T', exists T, T ⩭ T'
+with iso_cdec_exists : forall D', exists D, iso_cdec_dec D D'.
+Proof.
+  all: introv.
+  - dependent induction T'.
+    -- exists ctyp_top. eauto.
+    -- exists ctyp_bot. eauto.
+    -- destruct (iso_cdec_exists d) as [ d' Hd ].
+       exists (ctyp_rcd d'). eauto.
+    -- destruct IHT'1 as [t1 H1].
+       destruct IHT'2 as [t2 H2].
+       exists (ctyp_and t1 t2). eauto.
+    -- exists (ctyp_sel (cvar_x a) t). eauto.
+    -- destruct IHT' as [t' H]. exists (ctyp_bnd t'). eauto.
+    -- destruct IHT'1 as [t1 H1].
+       destruct IHT'2 as [t2 H2].
+       exists (ctyp_all t1 t2). eauto.
+  - dependent induction D'.
+    -- destruct (iso_ctyp_exists t0) as [ T0 H0 ].
+       destruct (iso_ctyp_exists t1) as [ T1 H1 ].
+       exists (cdec_typ t T0 T1). eauto.
+    -- destruct (iso_ctyp_exists t0) as [ T0 H0 ].
+       exists (cdec_trm t T0). eauto.
+Qed.
+
+Lemma iso_ctyp_unique : forall T T1 T2,
+    T1 ⩭ T ->
+    T2 ⩭ T ->
+    T1 = T2
+with iso_cdec_unique : forall D D1 D2,
+    iso_cdec_dec D1 D ->
+    iso_cdec_dec D2 D ->
+    D1 = D2.
+Proof.
+  all: introv Hiso1 Hiso2.
+  - dependent induction T; inversion Hiso1; inversion Hiso2; trivial; subst.
+    -- f_equal. apply* iso_cdec_unique.
+    -- f_equal. apply* IHT1. apply* IHT2.
+    -- f_equal. apply* IHT.
+    -- f_equal. apply* IHT1. apply* IHT2.
+  - dependent induction D; inversion Hiso1; inversion Hiso2; subst; f_equal; apply* iso_ctyp_unique.
+Qed.

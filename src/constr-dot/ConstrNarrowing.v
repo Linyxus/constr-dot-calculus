@@ -81,12 +81,148 @@ Inductive min_complete : constr -> ctx -> Prop :=
     min_complete C G ->
     min_complete (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ T) (G & x ~ T').
 
+Hint Constructors min_complete.
+
+Lemma min_complete_exists : forall G,
+    exists C, min_complete C G.
+Proof.
+  introv. dependent induction G; eauto. destruct a as [x T].
+  destruct (iso_ctyp_exists T) as [T' HT].
+  destruct IHG as [C IH].
+  exists (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ T').
+  replace ((x, T) :: G) with (G & x ~ T). eauto.
+  rew_env_defs. rewrite -> app_cons_l. rewrite -> app_nil_l.
+  auto.
+Qed.
+
+Inductive compatible : constr -> ctx -> Prop :=
+| partly_compatible_true : forall G, compatible ⊤ G
+| partly_compatible_grow : forall x T T' C G,
+    T ⩭ T' ->
+    binds x T' G ->
+    compatible C G ->
+    compatible (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ T) G.
+
+Inductive subconstr : constr -> constr -> Prop :=
+| subconstr_empty : subconstr ⊤ ⊤
+| subconstr_grow_one : forall C C' F,
+    subconstr C C' ->
+    subconstr C (C' ⋏ F)
+| subconstr_grow_both : forall C C' F,
+    subconstr C C' ->
+    subconstr (C' ⋏ F) (C' ⋏ F)
+.
+Lemma min_complete_ent_bound : forall rG G x T T',
+    min_complete rG G ->
+    T ⩭ T' ->
+    binds x T' G ->
+    rG ⊩ ctrm_cvar (cvar_x (avar_f x)) ⦂ T.
+Proof.
+  introv Hr Hiso Hb. dependent induction Hr.
+  - rewrite <- empty_def in Hb. destruct (binds_empty_inv Hb).
+  - specialize (IHHr Hiso). pose proof (binds_push_inv Hb). destruct_all.
+    -- subst. pose proof (iso_ctyp_unique H Hiso) as Heq. subst.
+       apply ent_and_right.
+    -- specialize (IHHr H1). eapply ent_trans. eapply ent_and_left. assumption.
+Qed.
+
+Lemma ent_and_combine : forall C D1 D2,
+    C ⊩ D1 ->
+    C ⊩ D2 ->
+    C ⊩ D1 ⋏ D2.
+Proof.
+  introv H1 H2. introe. eauto.
+Qed.
+
+Lemma ent_and_assoc2 : forall C1 C2 C3,
+    C1 ⋏ (C2 ⋏ C3) ⊩ (C1 ⋏ C2) ⋏ C3 .
+Proof.
+  introe. inversion H; subst. inversion H7; subst.
+  eauto.
+Qed.
+
+Lemma ent_imply_subtyp_aux : forall rG G C T T' U U',
+    compatible rG G ->
+    T ⩭ T' ->
+    U ⩭ U' ->
+    C ⋏ rG ⊩ T <⦂ U ->
+    (C, G) ⊢c T' <: U'.
+Proof.
+  introv Hc HT HU HTU. gen C.
+  dependent induction Hc; introv HTU.
+  - eapply csubtyp_inst; eauto 1. eapply ent_trans.
+    eapply ent_and_intro. apply ent_tautology. assumption.
+  - specialize (IHHc HT HU). eapply csubtyp_intro. exact H.
+    exact H0. apply IHHc. unfold constr_entail. introv Hi Hsat.
+    apply HTU; auto. inversion Hsat; subst. inversion H3; subst.
+    eauto.
+Qed.
+
+Lemma compatible_push_env : forall C G x T,
+    ok (G & x ~ T) ->
+    compatible C G ->
+    compatible C (G & x ~ T).
+Proof.
+  introv Hg Hc. dependent induction Hc.
+  - constructor.
+  - specialize (IHHc Hg).
+    econstructor. exact H. apply binds_concat_left_ok; auto.
+    assumption.
+Qed.
+
+Lemma min_complete_imply_compatible : forall C G,
+    ok G ->
+    min_complete C G ->
+    compatible C G.
+Proof.
+  introv Hg Hr.
+  dependent induction Hr; try constructor.
+  econstructor. exact H. apply* binds_push_eq. apply* compatible_push_env.
+Qed.
+
+Lemma ent_imply_subtyp : forall rG G C T T' U U',
+    ok G ->
+    min_complete rG G ->
+    T ⩭ T' ->
+    U ⩭ U' ->
+    C ⋏ rG ⊩ T <⦂ U ->
+    (C, G) ⊢c T' <: U'.
+Proof.
+  introv Hg Hr HT HU Hent. apply* ent_imply_subtyp_aux.
+  apply* min_complete_imply_compatible.
+Qed.
+
+Lemma subtyp_imply_ent : forall rG G C T T' U U',
+    min_complete rG G ->
+    T ⩭ T' ->
+    U ⩭ U' ->
+    (C, G) ⊢c T' <: U' ->
+    C ⋏ rG ⊩ T <⦂ U.
+Proof.
+  introv Hr HT HU HTU.
+  dependent induction HTU.
+  - specialize (IHHTU _ _ Hr HT HU eq_refl). eapply ent_trans; try apply IHHTU.
+    eapply ent_and_combine; try apply ent_and_right.
+    eapply ent_and_combine; try apply ent_and_left.
+    eapply ent_trans. apply ent_and_right.
+    apply* min_complete_ent_bound.
+  - eapply ent_trans. apply ent_and_left.
+    pose proof (iso_ctyp_unique H HT) as Heq; subst.
+    pose proof (iso_ctyp_unique H0 HU) as Heq; subst.
+    eauto.
+Qed.
+
 Lemma ent_csubtyp_equiv : forall D G C T T' U U',
+    ok G ->
     min_complete D G ->
     T ⩭ T' ->
     U ⩭ U' ->
     (C ⋏ D ⊩ T <⦂ U <-> (C, G) ⊢c T' <: U').
-Admitted.
+Proof.
+  introv Hok Hr HT HU. split; intros.
+  apply* ent_imply_subtyp.
+  apply* subtyp_imply_ent.
+Qed.
 
 Lemma narrow_constr_subtyping : forall C G G' T U,
     (C, G) ⊢c T <: U ->
@@ -102,9 +238,12 @@ Proof.
       destruct (csubenv_binds_inv H0 Hsub) as [t [Hbt Ht]].
       destruct (iso_ctyp_exists t) as [t' Hiso].
       eapply csubtyp_intro. exact Hiso. exact Hbt.
-      destruct (iso_ctyp_exists T) as [T' Hiso'].
-      (* eapply strengthen_constr_general_subtyping; try apply IHHTU. *)
-      admit.
+      destruct (iso_ctyp_exists T) as [T' HT].
+      destruct (iso_ctyp_exists U) as [U' HU].
+      destruct (min_complete_exists G') as [rG' Hr'].
+      apply* ent_imply_subtyp.
+      apply (subtyp_imply_ent Hr' HT HU) in IHHTU.
+      apply (subtyp_imply_ent Hr' Hiso H) in Ht.
     - eauto.
 Admitted.
 

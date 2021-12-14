@@ -224,6 +224,14 @@ Proof.
   apply* subtyp_imply_ent.
 Qed.
 
+Lemma ent_typ_sub : forall t S T,
+    t ⦂ S ⋏ S <⦂ T ⊩ t ⦂ T.
+Proof.
+  introe. inv_sat. inv_sat. inv_sat.
+  pose proof (map_ctyp_unique_typ H5 H10) as Heq. subst.
+  apply* sat_typ.
+Qed.
+
 Lemma narrow_constr_subtyping : forall C G G' T U,
     (C, G) ⊢c T <: U ->
     C ⊩e G' ⪯ G ->
@@ -244,8 +252,11 @@ Proof.
       apply* ent_imply_subtyp.
       apply (subtyp_imply_ent Hr' HT HU) in IHHTU.
       apply (subtyp_imply_ent Hr' Hiso H) in Ht.
+      unfold constr_entail. introv Hi Hsat.
+      apply* IHHTU. inv_sat. apply* sat_and.
+      inv_sat. apply* sat_and. apply* ent_typ_sub.
     - eauto.
-Admitted.
+Qed.
 
 Lemma narrow_constr_typing : forall C G G' t T,
     (C, G) ⊢c t : T ->

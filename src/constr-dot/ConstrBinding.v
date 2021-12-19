@@ -76,3 +76,9 @@ Fixpoint subst_constr (z: var) (u: var) (C: constr): constr :=
   | t ⦂ T => subst_ctrm z u t ⦂ subst_ctyp z u T
   | T <⦂ U => subst_ctyp z u T <⦂ subst_ctyp z u U
   end.
+
+Lemma subst_constr_and : forall x y C1 C2,
+    subst_constr x y C1 ⋏ subst_constr x y C2 = subst_constr x y (C1 ⋏ C2).
+Proof.
+  introv. reflexivity.
+Qed.

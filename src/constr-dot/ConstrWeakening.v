@@ -124,3 +124,20 @@ Proof.
     -- apply cty_defs_cons. apply* IHHT. eapply typing_def_weaken_constr; eassumption.
        exact H0.
 Qed.
+
+Ltac weaken_specialize :=
+  intros;
+  match goal with
+  | [ Hok: ok (?G1 & ?G2) |- _ ] =>
+    assert (G1 & G2 = G1 & G2 & empty) as EqG by rewrite~ concat_empty_r;
+    rewrite EqG; apply~ weaken_constr_typing;
+    (rewrite concat_empty_r || rewrite <- EqG); assumption
+  end.
+
+Lemma weaken_cty_trm : forall C G1 G2 t T,
+    (C, G1) ⊢c t : T ->
+    ok (G1 & G2) ->
+    (C, G1 & G2) ⊢c t : T.
+Proof.
+  weaken_specialize.
+Qed.

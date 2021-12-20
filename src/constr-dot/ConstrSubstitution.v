@@ -9,9 +9,11 @@ Set Implicit Arguments.
 Require Import String.
 Require Import Coq.Program.Equality.
 Require Import Definitions Binding Weakening Substitution.
-Require Import ConstrLangAlt ConstrTyping ConstrNarrowing.
+Require Import RecordAndInertTypes.
+Require Import ConstrLangAlt ConstrTyping ConstrNarrowing ConstrInterp.
 Require Import ConstrBinding ConstrEntailment ConstrWeakening.
-Require Import ConstrSubtypingLaws.
+Require Import ConstrSubtypingLaws EntailmentLaws.
+Require Import StrengtheningConstr.
 
 Ltac constr_fresh_constructor :=
   match goal with
@@ -39,13 +41,69 @@ Ltac constr_subst_solver :=
         unfold subst_ctx; auto using weaken_cty_trm
     end.
 
-Lemma general_subtyping_weaken_constr : forall C G x S S' T U,
+Lemma general_subtyping_weaken_constr : forall C1 C2 G x S S' T U,
+    S' ⩭ S ->
+    (C1, G) ⊢c trm_var (avar_f x) : S ->
+    (C1 ⋏ C2 ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S', G) ⊢c T <: U ->
+    (C1 ⋏ C2, G) ⊢c T <: U.
+Proof.
+  introv Hiso HS HTU. gen T U S' C2.
+  dependent induction HS; introv Hiso; introv HTU; eauto 2.
+  - specialize (IHHS _ _ _ eq_refl eq_refl).
+    destruct (iso_ctyp_exists (open_typ x T)) as [s Hs].
+    specialize (IHHS T0 U _ Hs). apply IHHS.
+    eapply strengthen_constr_general_subtyping; try apply HTU.
+    admit.
+  - specialize (IHHS _ _ _ eq_refl eq_refl).
+    destruct (iso_ctyp_exists (typ_bnd T)) as [s Hs].
+    specialize (IHHS T0 U _ Hs). apply IHHS.
+    admit.
+  - specialize (IHHS1 _ _ _ eq_refl eq_refl).
+    specialize (IHHS2 _ _ _ eq_refl eq_refl).
+    destruct (iso_ctyp_exists T) as [t Ht].
+    destruct (iso_ctyp_exists U) as [u Hu].
+    specialize (IHHS1 T0 U0 _ Ht).
+    specialize (IHHS2 T0 U0 _ Hu).
+    apply IHHS1.
+    eapply strengthen_constr_general_subtyping. apply ent_and_assoc.
+    apply IHHS2.
+    admit.
+  - specialize (IHHS _ _ _ eq_refl eq_refl).
+    destruct (iso_ctyp_exists T) as [t Ht].
+    specialize (IHHS T0 U0 _ Ht). apply IHHS.
+    admit.
+Admitted.
+
+Lemma general_csubtyp_weaken_constr : forall C G x S S' T U,
     S' ⩭ S ->
     (C, G) ⊢c trm_var (avar_f x) : S ->
     (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S', G) ⊢c T <: U ->
     (C, G) ⊢c T <: U.
 Proof.
-  introv Hiso HS HTU.
+Admitted.
+
+Lemma subst_csubtyp_aux1 : forall C1 C2 G x S S' y T,
+    S' ⩭ S ->
+    (C1, G) ⊢c trm_var (avar_f x) : S ->
+    (C1 ⋏ C2 ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S', G) ⊢c trm_var (avar_f y) : T ->
+    (C1 ⋏ C2, G) ⊢c trm_var (avar_f y) : T.
+Proof.
+  introv Hiso HS HT.
+  dependent induction HT; eauto 4.
+  specialize (IHHT _ _ _ _ _ _ Hiso HS eq_refl eq_refl).
+  eapply cty_sub. exact IHHT. eapply general_subtyping_weaken_constr.
+  exact Hiso. exact HS. exact H.
+Qed.
+
+Lemma ent_subst_comm : forall x y C D,
+    C ⊩ D ->
+    subst_constr x y C ⊩ subst_constr x y D.
+Proof.
+  introv Hent. introe. gen D.
+  dependent induction H; introv Hent.
+  - admit.
+  - admit.
+Admitted.
 
 Lemma subst_csubtyp : forall x y S C G1 G2 G T U,
     G = G1 & x ~ S & G2 ->
@@ -61,14 +119,21 @@ Proof.
     specialize (IHHTU Hok JMeq_refl Hx).
     assert (H1 : (subst_constr x y (C ⋏ ctrm_cvar (cvar_x (avar_f x0)) ⦂ S0), G1 & subst_ctx x y G2) ⊢c trm_var (avar_f y) : subst_typ x y S). {
       simpl. cases_if.
-      - eapply typing_weaken_constr. apply H.
+      - eapply strengthen_constr_general_typing.
+        apply ent_and_left. exact HS.
+      - eapply strengthen_constr_general_typing.
+        apply ent_and_left. exact HS.
     }
-  - admit.
-
-  (* destruct (min_complete_exists (G1 & x ~ S & G2)) as [rG Hr]. *)
-  (* destruct (iso_ctyp_exists T) as [T' HT]. *)
-  (* destruct (iso_ctyp_exists U) as [U' HU]. *)
-  (* eapply subtyp_imply_ent in HTU; try eassumption. *)
+    specialize (IHHTU H1). simpl in IHHTU. cases_if.
+    -- assert (Hiso' : subst_ctyp x y S0 ⩭ subst_typ x y S). { admit. }
+       eapply general_csubtyp_weaken_constr. exact Hiso'.
+       exact HS. exact IHHTU.
+    -- assert (B : binds x0 (subst_typ x y S') (G1 & subst_ctx x y G2)). { admit. }
+       assert (Hiso' : subst_ctyp x y S0 ⩭ subst_typ x y S'). { admit. }
+       eapply csubtyp_intro. exact Hiso'. exact B.
+       exact IHHTU.
+  - assert (Hs : subst_ctyp x y S0 ⩭ subst_typ x y S'). {admit.}
+    assert (Ht : subst_ctyp x y T ⩭ subst_typ x y T'). {admit.}
 Admitted.
 
 (** The proof is by mutual induction on term typing, definition typing, and subtyping. *)

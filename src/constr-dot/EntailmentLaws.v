@@ -32,4 +32,15 @@ Proof.
   introv Hiso. apply ent_trivial. apply* ent_sub_refl.
 Qed.
 
+Lemma ent_ty_rec_intro : forall x T T1 T2,
+    T1 ⩭ open_typ x T ->
+    T2 ⩭ typ_bnd T ->
+    ctrm_cvar (cvar_x (avar_f x)) ⦂ T1 ⊩ ctrm_cvar (cvar_x (avar_f x)) ⦂ T2.
+Proof.
+  introv Hiso1 Hiso2. introe.
+  inv_sat. inversion H5; subst. inversion H4; subst; clear H4.
+  pose proof (map_iso_ctyp tm vm Hiso1) as Hi.
+  pose proof (map_ctyp_unique_typ H7 Hi) as Heq1. subst.
+  eapply sat_typ. exact H5. apply* map_iso_ctyp. eauto.
+Qed.
 

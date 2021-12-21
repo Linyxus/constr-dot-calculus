@@ -25,6 +25,8 @@ Proof.
   econstructor; try apply* map_iso_ctyp. eauto.
 Qed.
 
+(** * Subtyping System Laws *)
+
 Lemma ent_sub_refl' : forall C T T',
     T ⩭ T' ->
     C ⊩ T <⦂ T.

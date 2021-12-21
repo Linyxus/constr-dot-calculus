@@ -20,6 +20,7 @@ Require Import PreciseConstrTyping.
 Require Import ConstrWeakening ConstrNarrowing.
 Require Import ConstrBinding.
 Require Import InvertibleConstrTyping.
+Require Import ConstrSubstitution.
 Require Import CanonicalForms.
 
 (** * Simple Implications of Typing *)
@@ -37,7 +38,7 @@ Qed.
     [―――――――――――――――――――――――]       #<br>#
     [exists d, ds = ... /\ d /\ ...]       #<br>#
     [G ⊢ d: D]                      *)
-Lemma record_has_ty_defs: forall C G T ds D,
+Lemma record_has_cty_defs: forall C G T ds D,
   (C, G) /-c ds :: T ->
   record_has T D ->
   exists d, defs_has ds d /\ (C, G) /-c d : D.
@@ -67,7 +68,7 @@ Qed.
     [G(x) = forall(T')U']     #<br>#
     [G ⊢ T <: T']        #<br>#
     [forall fresh y, G, y: T ⊢ U'^y <: U^y] *)
-Lemma var_typ_all_to_binds: forall C G x T U,
+Lemma constr_var_typ_all_to_binds: forall C G x T U,
     inert G ->
     G ⊨ C ->
     (C, G) ⊢c trm_var (avar_f x) : typ_all T U ->
@@ -177,12 +178,13 @@ Proof.
   lets Hsat': (general_to_tight_satisfiable Hi Hsat).
   lets Hinv: (tight_to_invertible_constr_typing_v Hi Hsat' Htt).
   inversions Hinv. inversions H3.
-  pick_fresh z. assert (z \notin L) as Hz by auto.
+  pick_fresh_gen (L \u fv_ctx_types G \u fv_defs ds \u fv_typ T \u fv_constr C
+                    \u dom G) z.
+  assert (z \notin L) as Hz by auto.
   specialize (H2 z Hz).
   assert ((C, G) /-c open_defs x ds :: open_typ x T) as Hds. {
-    (** --TODO: pick up here after proving the renaming lemmas for cDOT *)
-    apply* renaming_def; eauto.
+    apply* renaming_cdef; eauto.
   }
-  destruct (record_has_ty_defs Hds Hr) as [d [Hh Hd]]. inversions Hd.
+  destruct (record_has_cty_defs Hds Hr) as [d [Hh Hd]]. inversions Hd.
   exists t ds. split*.
 Qed.

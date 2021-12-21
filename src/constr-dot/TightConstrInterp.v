@@ -84,3 +84,20 @@ Definition tight_constr_satisfiable (C : constr) (G : ctx) :=
   exists tm vm, (tm, vm, G) ⊧# C.
 
 Notation "G '⊨#' C" := (tight_constr_satisfiable C G) (at level 40).
+
+Theorem tight_to_general_satisfiable : forall G C,
+    G ⊨# C ->
+    G ⊨ C.
+Proof.
+  introv Ht. destruct Ht. destruct H.
+  exists x x0. apply* tight_to_general_interp.
+Qed.
+
+Theorem general_to_tight_satisfiable : forall G C,
+    inert G ->
+    G ⊨ C ->
+    G ⊨# C.
+Proof.
+  introv HG Ht. destruct Ht. destruct H.
+  exists x x0. apply* general_to_tight_interp.
+Qed.

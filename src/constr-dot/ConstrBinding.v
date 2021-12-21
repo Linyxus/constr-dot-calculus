@@ -82,3 +82,47 @@ Lemma subst_constr_and : forall x y C1 C2,
 Proof.
   introv. reflexivity.
 Qed.
+
+(** * Variable Substitution Lemmas *)
+
+(** The following [subst_fresh_XYZ] lemmas state that if [x] is not free
+    in a symbol [Y], then [Y[z/x] = Y]. *)
+
+(** Fresh substitution
+    - in variables *)
+Lemma subst_fresh_cvar: forall x y,
+  (forall c: cvar, x \notin fv_cvar c -> subst_cvar x y c = c).
+Proof.
+  intros. destruct* c. simpl. rewrite subst_fresh_avar; auto.
+Qed.
+
+(** - in types and declarations *)
+Lemma subst_fresh_ctyp_cdec: forall x y,
+  (forall T : ctyp , x \notin fv_ctyp  T  -> subst_ctyp  x y T  = T ) /\
+  (forall D : cdec , x \notin fv_cdec  D  -> subst_cdec  x y D  = D ).
+Proof.
+  intros x y. apply ctyp_mutind; intros; simpls; f_equal*.
+  apply* subst_fresh_cvar.
+Qed.
+
+Definition subst_fresh_ctyp(x y: var) := proj1 (subst_fresh_ctyp_cdec x y).
+
+(** - in terms, values, and definitions *)
+Lemma subst_fresh_ctrm_cval_cdef_cdefs: forall x y,
+  (forall t : ctrm , x \notin fv_ctrm  t  -> subst_ctrm  x y t  = t ) /\
+  (forall v : cval , x \notin fv_cval  v  -> subst_cval  x y v  = v ) /\
+  (forall d : cdef , x \notin fv_cdef  d  -> subst_cdef  x y d  = d ) /\
+  (forall ds: cdefs, x \notin fv_cdefs ds -> subst_cdefs x y ds = ds).
+Proof.
+  intros x y. apply ctrm_mutind; intros; simpls; f_equal*;
+    (apply* subst_fresh_cvar || apply* subst_fresh_ctyp_cdec).
+Qed.
+
+Lemma subst_fresh_constr: forall x y,
+    (forall C, x \notin fv_constr C -> subst_constr x y C = C).
+Proof.
+  intros.
+  dependent induction C; unfold fv_constr; simpl in *; eauto; f_equal;
+    eauto using subst_fresh_ctyp, subst_fresh_ctrm_cval_cdef_cdefs.
+  apply* subst_fresh_ctrm_cval_cdef_cdefs.
+Qed.

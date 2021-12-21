@@ -381,3 +381,65 @@ Proof.
     -- f_equal. apply* IHT1. apply* IHT2.
   - dependent induction D; inversion Hiso1; inversion Hiso2; subst; f_equal; apply* iso_ctyp_unique.
 Qed.
+
+Definition fv_cvar (x: cvar) : vars :=
+  match x with
+  | cvar_f x => \{}
+  | cvar_b i => \{}
+  | cvar_x x => fv_avar x
+  end.
+
+Fixpoint fv_ctyp (T: ctyp) : vars :=
+  match T with
+  | ctyp_top        => \{}
+  | ctyp_bot        => \{}
+  | ctyp_tvar tv    => \{}
+  | ctyp_rcd D      => (fv_cdec D)
+  | ctyp_and T U    => (fv_ctyp T) \u (fv_ctyp U)
+  | ctyp_sel x L    => (fv_cvar x)
+  | ctyp_bnd T      => (fv_ctyp T)
+  | ctyp_all T1 T2  => (fv_ctyp T1) \u (fv_ctyp T2)
+  end
+with fv_cdec (D: cdec) : vars :=
+  match D with
+  | cdec_typ L T U => (fv_ctyp T) \u (fv_ctyp U)
+  | cdec_trm m T   => (fv_ctyp T)
+  end.
+
+(** Free variables in a term, value, or definition. *)
+Fixpoint fv_ctrm (t: ctrm) : vars :=
+  match t with
+  | ctrm_cvar a       => (fv_cvar a)
+  | ctrm_val v        => (fv_cval v)
+  | ctrm_sel x m      => (fv_cvar x)
+  | ctrm_app f a      => (fv_cvar f) \u (fv_cvar a)
+  | ctrm_let t1 t2    => (fv_ctrm t1) \u (fv_ctrm t2)
+  end
+with fv_cval (v: cval) : vars :=
+  match v with
+  | cval_new T ds    => (fv_ctyp T) \u (fv_cdefs ds)
+  | cval_lambda T e  => (fv_ctyp T) \u (fv_ctrm e)
+  end
+with fv_cdef (d: cdef) : vars :=
+  match d with
+  | cdef_typ _ T     => (fv_ctyp T)
+  | cdef_trm _ t     => (fv_ctrm t)
+  end
+with fv_cdefs(ds: cdefs) : vars :=
+  match ds with
+  | cdefs_nil         => \{}
+  | cdefs_cons tl d   => (fv_cdefs tl) \u (fv_cdef d)
+  end.
+
+Fixpoint fv_constr (C: constr) : vars :=
+  match C with
+  | ⊤ => \{}
+  | ⊥ => \{}
+  | C1 ⋏ C2 => fv_constr C1 \u fv_constr C2
+  | C1 ⋎ C2 => fv_constr C1 \u fv_constr C2
+  | ∃t C => fv_constr C
+  | ∃v C => fv_constr C
+  | t ⦂ T => fv_ctrm t \u fv_ctyp T
+  | T <⦂ U => fv_ctyp T \u fv_ctyp U
+  end.
+

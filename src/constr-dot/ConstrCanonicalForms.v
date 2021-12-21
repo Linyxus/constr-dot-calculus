@@ -180,6 +180,7 @@ Proof.
   pick_fresh z. assert (z \notin L) as Hz by auto.
   specialize (H2 z Hz).
   assert ((C, G) /-c open_defs x ds :: open_typ x T) as Hds. {
+    (** --TODO: pick up here after proving the renaming lemmas for cDOT *)
     apply* renaming_def; eauto.
   }
   destruct (record_has_ty_defs Hds Hr) as [d [Hh Hd]]. inversions Hd.

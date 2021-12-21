@@ -12,6 +12,7 @@ Set Implicit Arguments.
 Require Import TLC.LibLN.
 Require Import Coq.Program.Equality.
 Require Import Definitions Narrowing PreciseTyping RecordAndInertTypes Subenvironments.
+Require Import ConstrNarrowing ConstrSubenvironments.
 Require Import TightTyping.
 Require Import ConstrLangAlt ConstrTyping TightConstrTyping PreciseConstrTyping.
 Require Import TightConstrEntailment ConstrEntailment.
@@ -652,3 +653,115 @@ Proof.
   apply* invertible_constr_typing_closure_tight_v.
 Qed.
 
+(** ** Invertible to Precise Typing [|-## to |-!] *)
+
+(** Invertible-to-precise typing for field declarations: #<br>#
+    [G ⊢## x: {a: T}]            #<br>#
+    [――――――――――――――――――――――]      #<br>#
+    [exists T', G ⊢! x: {a: T'}]      #<br>#
+    [G ⊢# T' <: T]. *)
+Lemma constr_invertible_to_precise_trm_dec : forall C G x a T,
+    (C, G) ⊢c## x : typ_rcd (dec_trm a T) ->
+    exists T' U,
+      G ⊢! x : U ⪼ typ_rcd (dec_trm a T') /\
+      (C, G) ⊢c# T' <: T.
+Proof.
+  introv Hinv.
+  dependent induction Hinv.
+  - exists T T0. split; auto 1.
+    destruct (iso_ctyp_exists T).
+    eapply csubtyp_inst_t; eauto. introv Hi He.
+    eapply sat_sub_t; try apply* map_iso_ctyp; eauto.
+  - specialize (IHHinv _ _ _ _ eq_refl eq_refl).
+    destruct IHHinv as [V [V' [Hx Hs]]].
+    exists V V'. split; auto. apply* tight_constr_subtyping_trans.
+Qed.
+
+Lemma csubtyp_t_refl : forall C G T,
+    (C, G) ⊢c# T <: T.
+Proof.
+  introv. destruct (iso_ctyp_exists T).
+  eapply csubtyp_inst_t; eauto 1.
+  introv Hi He. eapply sat_sub_t; try apply* map_iso_ctyp; eauto.
+Qed.
+
+Lemma csubtyp_refl : forall C G T,
+    (C, G) ⊢c T <: T.
+Proof.
+  introv. destruct (iso_ctyp_exists T).
+  eapply csubtyp_inst; eauto 1.
+  introv Hi He. eapply sat_sub; try apply* map_iso_ctyp; eauto.
+Qed.
+
+Lemma csubtyp_all_t: forall L C G S1 T1 S2 T2,
+    (C, G) ⊢c# S2 <: S1 ->
+    (forall x, x \notin L ->
+       (C, G & x ~ S2) ⊢c open_typ x T1 <: open_typ x T2) ->
+    (C, G) ⊢c# typ_all S1 T1 <: typ_all S2 T2.
+Admitted.
+
+(** Invertible-to-precise typing for function types: #<br>#
+    [ok G]                        #<br>#
+    [G ⊢## x: forall(S)T]             #<br>#
+    [――――――――――――――――――――――――――]  #<br>#
+    [exists S', T'. G ⊢! x: forall(S')T']  #<br>#
+    [G ⊢# S <: S']               #<br>#
+    [G ⊢# T'^y <: T^y], where [y] is fresh. *)
+Lemma constr_invertible_to_precise_typ_all: forall C G x S T,
+  ok G ->
+  (C, G) ⊢c## x : typ_all S T ->
+  exists S' T' U L,
+    G ⊢! x : U ⪼ typ_all S' T' /\
+    (C, G) ⊢c# S <: S' /\
+    (forall y,
+        y \notin L ->
+            (C, G & y ~ S) ⊢c open_typ y T' <: open_typ y T).
+Proof.
+  introv HG Hinv.
+  dependent induction Hinv.
+  - exists S T T0 (dom G). split; try split; eauto 2 using csubtyp_t_refl, csubtyp_refl.
+  - specialize (IHHinv _ _ _ HG _ JMeq_refl eq_refl).
+    destruct IHHinv as [S' [T' [V' [L' [Hpt [HSsub HTsub]]]]]].
+    exists S' T' V' (dom G \u L \u L').
+    split; eauto.
+    assert (Hsub2 : (C, G) ⊢c# typ_all S0 T0 <: typ_all S T).
+    { apply csubtyp_all_t with L; assumption. }
+    split.
+    + eapply tight_constr_subtyping_trans; eauto.
+    + intros y Fr.
+      assert (Hok: ok (G & y ~ S)) by auto using ok_push.
+      apply tight_to_general_constr_typing in H; auto.
+      assert (Hnarrow: (C, G & y ~ S) ⊢c open_typ y T' <: open_typ y T0).
+      { eapply narrow_constr_subtyping; auto using subenv_last. }
+      eapply constr_subtyping_trans. apply Hnarrow.
+      apply* H0.
+Qed.
+
+(** [G ⊢##v v: forall(S)T]                 #<br>#
+    [inert G]                          #<br>#
+    [――――――――――――――――――――――――――――――――] #<br>#
+    [exists S', T', G ⊢! v: forall(S')T']      #<br>#
+    [G ⊢ S <: S']                      #<br>#
+    [forall fresh y, G, y: S ⊢ T'^y <: T^y] *)
+Lemma constr_invertible_val_to_precise_lambda: forall C G v S T,
+    inert G ->
+    (C, G) ⊢c##v v : typ_all S T ->
+    exists L S' T',
+      (C, G) ⊢c!v v : typ_all S' T' /\
+      (C, G) ⊢c S <: S' /\
+      (forall y, y \notin L ->
+                 (C, G & y ~ S) ⊢c open_typ y T' <: open_typ y T).
+Proof.
+  introv Hi Ht. dependent induction Ht.
+  - exists (dom G) S T. split; eauto using csubtyp_refl.
+  - destruct (IHHt _ _ _ Hi _ eq_refl eq_refl) as [L' [S1 [T1 [Hp [Hss Hst]]]]].
+    exists (L \u L' \u dom G) S1 T1. split. assumption. split. apply constr_subtyping_trans with (T:=S0).
+    apply* tight_to_general_constr_typing. assumption. intros.
+    assert (ok (G & y ~ S)) as Hok. {
+      apply* ok_push.
+    }
+    apply constr_subtyping_trans with (T:=open_typ y T0).
+    eapply narrow_constr_subtyping. apply* Hst. apply csubenv_last. apply* tight_to_general_constr_typing.
+    assumption.
+    apply* H0.
+Qed.

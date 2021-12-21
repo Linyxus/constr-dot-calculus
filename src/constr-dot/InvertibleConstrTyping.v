@@ -409,77 +409,16 @@ Proof.
   - eapply tight_constr_subtyping_trans_aux; eassumption.
 Qed.
 
-Lemma tight_to_constr_subtyping_and2_aux : forall C G S S' T T' U,
-    S ⩭ S' ->
-    T ⩭ T' ->
-    C ⊩# S <⦂ T ->
-    (C, G) ⊢c# S' <: U ->
-    (C, G) ⊢c# S' <: typ_and T' U.
-Proof.
-  introv Hs Ht Hst Hsu.
-  dependent induction Hsu.
-  - eapply weaken_constr_tight_subtyping.
-    apply H. eassumption.
-    apply~ IHHsu.
-    eapply tight_ent_trans.
-    apply tight_ent_and_elim1. assumption.
-  -
-    Ltac subst_eq_iso_ctyp T' :=
-      match goal with
-      | H1 : ?T1 ⩭ T', H2 : ?T2 ⩭ T' |- _ =>
-          idtac H1; idtac H2; specialize (iso_ctyp_unique H1 H2) as ?H; subst; clear H1
-      end.
-    subst_eq_iso_ctyp S'.
-Admitted.
-
-Lemma tight_to_constr_subtyping_and2 : forall C G S T U,
-    (C, G) ⊢c# S <: T ->
-    (C, G) ⊢c# S <: U ->
-    (C, G) ⊢c# S <: typ_and T U.
-Proof.
-  introv Hst Hsu.
-  dependent induction Hst.
-  - specialize (IHHst _ _ eq_refl).
-    eapply weaken_constr_tight_subtyping. exact H. exact H0.
-    apply IHHst. eapply strengthen_constr_tight_subtyping.
-    apply tight_ent_and_elim1. exact Hsu.
-  - admit.
-Admitted.
-
-Lemma tight_to_constr_subtyping_aux : forall G T U,
-    G ⊢# T <: U ->
-    (⊤, G) ⊢c# T <: U.
-Proof.
-  introv Hsub. dependent induction Hsub.
-  - destruct (iso_ctyp_exists T) as [T0 HT].
-    destruct (iso_ctyp_exists typ_top) as [t Ht].
-    eapply csubtyp_inst_t.
-    exact HT. exact Ht. inversion Ht; subst.
-    introe. apply sat_sub_t with T typ_top.
-    apply* map_iso_ctyp. constructor. eauto.
-  - csubtyp_t_to_ent.
-    solve_trivial_csubtyp_t; try apply~ map_iso_ctyp;
-      try eassumption.
-    eauto.
-  - csubtyp_t_to_ent.
-    solve_trivial_csubtyp_t; try apply~ map_iso_ctyp;
-      try eassumption.
-    eauto.
-  - apply* tight_constr_subtyping_trans.
-  - csubtyp_t_to_ent.
-    inversion HTc; subst. introe_t. pose proof (iso_ctyp_unique HUc H2); subst.
-    eapply sat_sub_t; try apply* map_iso_ctyp. eauto.
-  - csubtyp_t_to_ent.
-    inversion HTc; subst. introe_t. pose proof (iso_ctyp_unique HUc H3); subst.
-    eapply sat_sub_t; try apply* map_iso_ctyp. eauto.
-  - csubtyp_t_to_ent. introe_t.
+Lemma constr_subtyping_trans : forall C G S T U,
+    (C, G) ⊢c S <: T ->
+    (C, G) ⊢c T <: U ->
+    (C, G) ⊢c S <: U.
 Admitted.
 
 Theorem tight_to_constr_subtyping : forall C G T U,
     G ⊢# T <: U ->
     (C, G) ⊢c# T <: U.
 Proof.
-  introv Hsub.
 Admitted.
 
 Theorem general_to_constr_subtyping : forall C G T U,

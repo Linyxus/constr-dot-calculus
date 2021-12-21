@@ -137,9 +137,10 @@ Proof.
        assert (Hiso' : subst_ctyp x y S0 ⩭ subst_typ x y S'). { admit. }
        eapply csubtyp_intro. exact Hiso'. exact B.
        exact IHHTU.
-  - assert (Hs : subst_ctyp x y S0 ⩭ subst_typ x y S'). {admit.}
-    assert (Ht : subst_ctyp x y T ⩭ subst_typ x y T'). {admit.}
 Admitted.
+(*   - assert (Hs : subst_ctyp x y S0 ⩭ subst_typ x y S'). {admit.} *)
+(*     assert (Ht : subst_ctyp x y T ⩭ subst_typ x y T'). {admit.} *)
+(* Admitted. *)
 
 (** The proof is by mutual induction on term typing, definition typing, and subtyping. *)
 Lemma constr_subst_rules: forall y S,
@@ -190,7 +191,7 @@ Qed.
 Lemma subst_cty_defs: forall y S C G x ds T,
     (C, G & x ~ S) /-c ds :: T ->
     ok (G & x ~ S) ->
-    x \notin fv_ctx_types G ->
+    x \notin (fv_ctx_types G \u fv_constr C) ->
     (C, G) ⊢c trm_var (avar_f y) : subst_typ x y S ->
     (C, G) /-c subst_defs x y ds :: subst_typ x y T.
 Proof.
@@ -199,13 +200,10 @@ Proof.
   apply Hrule with (C:=C) (G1:=G) (G2:=empty) (x:=x) in H;
     unfold subst_ctx in *; try rewrite map_empty in *;
     try rewrite concat_empty_r in *; auto.
-
-  (** --TODO: Pick up here *)
-  (** Fix the proof by proving: [y/x] C = C if x is fresh in C *)
-
-  (* apply (proj53 (subst_rules y S)) with (G1:=G) (G2:=empty) (x:=x) in H; *)
-  (*   unfold subst_ctx in *; try rewrite map_empty in *; *)
-  (*     try rewrite concat_empty_r in *; auto. *)
+  lets Heq: (subst_fresh_constr). specialize (Heq x y C).
+  rewrite* Heq in H.
+  lets Heq: (subst_fresh_constr). specialize (Heq x y C).
+  rewrite* Heq.
 Qed.
 
 (** * Renaming  *)
@@ -218,10 +216,10 @@ Qed.
     [G ⊢ x: T^x]             #<br>#
     [――――――――――――――――――――――] #<br>#
     [G ⊢ ds^x : T^x]         *)
-Lemma renaming_def: forall C G z T ds x,
+Lemma renaming_cdef: forall C G z T ds x,
     ok G ->
     z # G ->
-    z \notin (fv_ctx_types G \u fv_defs ds \u fv_typ T) ->
+    z \notin (fv_ctx_types G \u fv_defs ds \u fv_typ T \u fv_constr C) ->
     (C, G & z ~ open_typ z T) /-c open_defs z ds :: open_typ z T ->
     (C, G) ⊢c trm_var (avar_f x) : open_typ x T ->
     (C, G) /-c open_defs x ds :: open_typ x T.

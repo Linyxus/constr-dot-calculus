@@ -72,8 +72,12 @@ Proof.
     destruct (iso_ctyp_exists T) as [t Ht].
     specialize (IHHS T0 U0 _ Ht). apply IHHS.
     admit.
+
+(** The admitted case requires us to prove a series of entailment laws.
+    All of them look provable. *)
 Admitted.
 
+(** This lemma is a trivial corollary of the [[general_subtyping_weaken_constr]] theorem. *)
 Lemma general_csubtyp_weaken_constr : forall C G x S S' T U,
     S' ⩭ S ->
     (C, G) ⊢c trm_var (avar_f x) : S ->
@@ -126,6 +130,7 @@ Proof.
     }
     specialize (IHHTU H1). simpl in IHHTU. cases_if.
     -- assert (Hiso' : subst_ctyp x y S0 ⩭ subst_typ x y S). { admit. }
+       (** --TODO: Prove lemma: S ⩭ T implies [y/x] S ⩭ [y/x] T. *)
        eapply general_csubtyp_weaken_constr. exact Hiso'.
        exact HS. exact IHHTU.
     -- assert (B : binds x0 (subst_typ x y S') (G1 & subst_ctx x y G2)). { admit. }
@@ -179,4 +184,48 @@ Proof.
     rewrite subst_open_commut_typ. auto. eauto.
   - Case "ty_defs_cons"%string.
     constructor*. rewrite <- subst_label_of_def. apply* subst_defs_hasnt.
+Qed.
+
+(** The substitution lemma for definition typing. *)
+Lemma subst_cty_defs: forall y S C G x ds T,
+    (C, G & x ~ S) /-c ds :: T ->
+    ok (G & x ~ S) ->
+    x \notin fv_ctx_types G ->
+    (C, G) ⊢c trm_var (avar_f y) : subst_typ x y S ->
+    (C, G) /-c subst_defs x y ds :: subst_typ x y T.
+Proof.
+  intros.
+  lets Hrules: (constr_subst_rules y S). destruct Hrules as [_ [_ [Hrule _]]].
+  apply Hrule with (C:=C) (G1:=G) (G2:=empty) (x:=x) in H;
+    unfold subst_ctx in *; try rewrite map_empty in *;
+    try rewrite concat_empty_r in *; auto.
+
+  (** --TODO: Pick up here *)
+  (** Fix the proof by proving: [y/x] C = C if x is fresh in C *)
+
+  (* apply (proj53 (subst_rules y S)) with (G1:=G) (G2:=empty) (x:=x) in H; *)
+  (*   unfold subst_ctx in *; try rewrite map_empty in *; *)
+  (*     try rewrite concat_empty_r in *; auto. *)
+Qed.
+
+(** * Renaming  *)
+
+(** Renaming the name of the opening variable for definition typing.  #<br>#
+
+    [ok G]                   #<br>#
+    [z] fresh                #<br>#
+    [G, z: T^z ⊢ ds^z : T^z] #<br>#
+    [G ⊢ x: T^x]             #<br>#
+    [――――――――――――――――――――――] #<br>#
+    [G ⊢ ds^x : T^x]         *)
+Lemma renaming_def: forall C G z T ds x,
+    ok G ->
+    z # G ->
+    z \notin (fv_ctx_types G \u fv_defs ds \u fv_typ T) ->
+    (C, G & z ~ open_typ z T) /-c open_defs z ds :: open_typ z T ->
+    (C, G) ⊢c trm_var (avar_f x) : open_typ x T ->
+    (C, G) /-c open_defs x ds :: open_typ x T.
+Proof.
+  introv Hok Hnz Hnz' Hz Hx. rewrite subst_intro_typ with (x:=z). rewrite subst_intro_defs with (x:=z).
+  eapply subst_cty_defs; auto. eapply Hz. rewrite <- subst_intro_typ. all: auto.
 Qed.

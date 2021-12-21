@@ -3,7 +3,7 @@ Set Implicit Arguments.
 Require Import Coq.Program.Equality String.
 Require Import Binding CanonicalForms Definitions GeneralToTight InvertibleTyping Narrowing
             OperationalSemantics PreciseTyping RecordAndInertTypes Substitution Weakening.
-Require Import InvertibleConstrTyping.
+Require Import ConstrSafety.
 
 (** The typing of a term with a stack *)
 Inductive sta_trm_typ : sta * trm -> typ -> Prop :=

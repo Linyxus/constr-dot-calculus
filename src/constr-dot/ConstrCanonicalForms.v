@@ -188,3 +188,56 @@ Proof.
   destruct (record_has_cty_defs Hds Hr) as [d [Hh Hd]]. inversions Hd.
   exists t ds. split*.
 Qed.
+
+Definition constr_well_typed (C : constr) (G : ctx) (s : sta) : Prop :=
+  ok G /\
+  ok s /\
+  (dom G = dom s) /\
+  (forall x T v, binds x T G ->
+            binds x v s ->
+            (C, G) ⊢c trm_val v : T).
+
+Hint Unfold constr_well_typed.
+
+(** * Well-typedness *)
+
+(** If [s: G], the variables in the domain of [s] are distinct. *)
+Lemma constr_well_typed_to_ok_G: forall s C G,
+    constr_well_typed C G s -> ok G.
+Proof.
+  intros. destruct H as [? [? ?]]. auto.
+Qed.
+Hint Resolve constr_well_typed_to_ok_G.
+
+(** * Canonical Forms for Functions
+
+    [inert G]            #<br>#
+    [s: G]               #<br>#
+    [G ⊢ x: forall(T)U]       #<br>#
+    [――――――――――――――――――] #<br>#
+    [s(x) = lambda(T')t] #<br>#
+    [G ⊢ T <: T']        #<br>#
+    [G, x: T ⊢ t: U]          *)
+Lemma constr_canonical_forms_fun: forall C G s x T U,
+  inert G ->
+  G ⊨ C ->
+  constr_well_typed C G s ->
+  (C, G) ⊢c trm_var (avar_f x) : typ_all T U ->
+  (exists L T' t, binds x (val_lambda T' t) s /\ (C, G) ⊢c T <: T' /\
+  (forall y, y \notin L -> (C, G & y ~ T) ⊢c open_trm y t : open_typ y U)).
+Proof.
+  introv Hin Hsat Hwt Hty.
+  destruct (constr_var_typ_all_to_binds Hin Hsat Hty) as [L [S [T' [BiG [Hs1 Hs2]]]]].
+  destruct (corresponding_types Hwt BiG) as [v [Bis Ht]].
+  destruct (val_typ_all_to_lambda Hin Ht) as [L' [S' [t [Heq [Hs1' Hs2']]]]].
+  subst.
+  exists (L \u L' \u (dom G)) S' t. repeat split~.
+  - eapply subtyp_trans; eauto.
+  - intros.
+    assert (HL: y \notin L) by auto.
+    assert (HL': y \notin L') by auto.
+    specialize (Hs2 y HL).
+    specialize (Hs2' y HL').
+    apply narrow_typing with (G':=G & y ~ T) in Hs2'; auto.
+    + eapply ty_sub; eauto.
+Qed.

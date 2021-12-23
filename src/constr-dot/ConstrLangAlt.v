@@ -443,3 +443,20 @@ Fixpoint fv_constr (C: constr) : vars :=
   | T <⦂ U => fv_ctyp T \u fv_ctyp U
   end.
 
+Ltac constr_gather_vars :=
+  let A := gather_vars_with (fun x : vars      => x          ) in
+  let B := gather_vars_with (fun x : var       => \{ x }     ) in
+  let C := gather_vars_with (fun x : ctx       => (dom x) \u (fv_ctx_types x)) in
+  let D := gather_vars_with (fun x : sta       => dom x \u fv_sta_vals x) in
+  let E := gather_vars_with (fun x : avar      => fv_avar   x) in
+  let F := gather_vars_with (fun x : trm       => fv_trm    x) in
+  let G := gather_vars_with (fun x : val       => fv_val    x) in
+  let H := gather_vars_with (fun x : def       => fv_def    x) in
+  let I := gather_vars_with (fun x : defs      => fv_defs   x) in
+  let J := gather_vars_with (fun x : typ       => fv_typ    x) in
+  let K := gather_vars_with (fun x : constr    => fv_constr x) in
+  constr:(A \u B \u C \u D \u E \u F \u G \u H \u I \u J \u K).
+
+Ltac constr_pick_fresh x :=
+  let L := constr_gather_vars in (pick_fresh_gen L x).
+

@@ -187,6 +187,25 @@ Proof.
     constructor*. rewrite <- subst_label_of_def. apply* subst_defs_hasnt.
 Qed.
 
+(** The substitution lemma for term typing.
+    This lemma corresponds to Lemma 3.19 in the paper. *)
+Lemma subst_cty_trm: forall y S C G x t T,
+    (C, G & x ~ S) ⊢c t : T ->
+    ok (G & x ~ S) ->
+    x \notin (fv_ctx_types G \u fv_constr C) ->
+    (C, G) ⊢c trm_var (avar_f y) : subst_typ x y S ->
+    (C, G) ⊢c subst_trm x y t : subst_typ x y T.
+Proof.
+  intros.
+  lets Hrules: (constr_subst_rules y S). destruct Hrules as [Hrule _].
+  apply Hrule with (C:=C) (G1:=G) (G2:=empty) (x:=x) in H;
+  unfold subst_ctx in *; try rewrite map_empty in *; try rewrite concat_empty_r in *; auto.
+  lets Heq: (subst_fresh_constr). specialize (Heq x y C).
+  rewrite* Heq in H.
+  lets Heq: (subst_fresh_constr). specialize (Heq x y C).
+  rewrite* Heq.
+Qed.
+
 (** The substitution lemma for definition typing. *)
 Lemma subst_cty_defs: forall y S C G x ds T,
     (C, G & x ~ S) /-c ds :: T ->
@@ -226,4 +245,41 @@ Lemma renaming_cdef: forall C G z T ds x,
 Proof.
   introv Hok Hnz Hnz' Hz Hx. rewrite subst_intro_typ with (x:=z). rewrite subst_intro_defs with (x:=z).
   eapply subst_cty_defs; auto. eapply Hz. rewrite <- subst_intro_typ. all: auto.
+Qed.
+
+(** Renaming the name of the opening variable for term typing. #<br>#
+    [ok G]                   #<br>#
+    [z] fresh                #<br>#
+    [G, z: U ⊢ t^z : T^z]    #<br>#
+    [G ⊢ x: U]               #<br>#
+    [――――――――――――――――――――――] #<br>#
+    [G ⊢ t^x : T^x]         *)
+Lemma renaming_ctyp: forall C G z T U t x,
+    ok G ->
+    z # G ->
+    z \notin (fv_ctx_types G \u fv_typ U \u fv_typ T \u fv_trm t \u fv_constr C) ->
+    (C, G & z ~ U) ⊢c open_trm z t : open_typ z T ->
+    (C, G) ⊢c trm_var (avar_f x) : U ->
+    (C, G) ⊢c open_trm x t : open_typ x T.
+Proof.
+  introv Hok Hnz Hnz' Hz Hx. rewrite subst_intro_typ with (x:=z). rewrite subst_intro_trm with (x:=z).
+  eapply subst_cty_trm; auto. eapply Hz. rewrite subst_fresh_typ. all: auto.
+Qed.
+
+(** Renaming the name of the opening variable for term typing. #<br>#
+    [ok G]                   #<br>#
+    [z] fresh                #<br>#
+    [G, z: U ⊢ t^z : T^z]    #<br>#
+    [――――――――――――――――――――――] #<br>#
+    [G ⊢ t^x : T^x]         *)
+Lemma constr_renaming_fresh : forall L C G T u U x,
+    ok G ->
+    (forall x : var, x \notin L -> (C, G & x ~ T) ⊢c open_trm x u : U) ->
+    (C, G) ⊢c trm_var (avar_f x) : T ->
+    (C, G) ⊢c open_trm x u : U.
+Proof.
+  introv Hok Hu Hx. constr_pick_fresh y.
+  rewrite subst_intro_trm with (x:=y); auto.
+  rewrite <- subst_fresh_typ with (x:=y) (y:=x); auto.
+  apply~ subst_cty_trm. rewrite~ subst_fresh_typ.
 Qed.

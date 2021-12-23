@@ -205,3 +205,57 @@ Definition compatible_constr C G t T :=
 (*          eapply ent_and_intro. apply ent_refl. *)
 (* Qed. *)
 
+(** [G ⊢ ds :: U]                          #<br>#
+    [U] is a record type with labels [ls]  #<br>#
+    [ds] are definitions with label [ls']  #<br>#
+    [l \notin ls']                          #<br>#
+    [―――――――――――――――――――――――――――――――――――]  #<br>#
+    [l \notin ls] *)
+Lemma constr_hasnt_notin : forall C G ds ls l U,
+    (C, G) /-c ds :: U ->
+    record_typ U ls ->
+    defs_hasnt ds l ->
+    l \notin ls.
+Proof.
+
+  Ltac inversion_def_typ :=
+    match goal with
+    | [ H: _ /-c _ : _ |- _ ] => inversions H
+    end.
+
+  introv Hds Hrec Hhasnt.
+  inversions Hhasnt. gen ds. induction Hrec; intros; inversions Hds.
+  - inversion_def_typ; simpl in *; case_if; apply* notin_singleton.
+  - apply notin_union; split; simpl in *.
+    + apply* IHHrec. case_if*.
+    + inversion_def_typ; case_if; apply* notin_singleton.
+Qed.
+
+(** The type of definitions is a record type. *)
+Lemma cty_defs_record_type : forall C G ds T,
+    (C, G) /-c ds :: T ->
+    record_type T.
+Proof.
+ intros. induction H; destruct D;
+    repeat match goal with
+        | [ H: record_type _ |- _ ] =>
+          destruct H
+        | [ Hd: _ /-c _ : dec_typ _ _ _ |- _ ] =>
+          inversions Hd
+        | [ Hd: _ /-c _ : dec_trm _ _ |- _ ] =>
+          inversions Hd
+    end;
+    match goal with
+    | [ ls: fset label,
+        t: trm_label |- _ ] =>
+      exists (ls \u \{ label_trm t })
+    | [ ls: fset label,
+        t: typ_label |- _ ] =>
+      exists (ls \u \{ label_typ t })
+    | [ t: trm_label |- _ ] =>
+      exists \{ label_trm t }
+    | [ t: typ_label |- _ ] =>
+      exists \{ label_typ t }
+    end;
+    constructor*; try constructor; apply (constr_hasnt_notin H); eauto.
+Qed.

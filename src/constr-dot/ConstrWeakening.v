@@ -130,7 +130,9 @@ Ltac weaken_specialize :=
   match goal with
   | [ Hok: ok (?G1 & ?G2) |- _ ] =>
     assert (G1 & G2 = G1 & G2 & empty) as EqG by rewrite~ concat_empty_r;
-    rewrite EqG; apply~ weaken_constr_typing;
+    rewrite EqG;
+    try apply~ weaken_constr_typing;
+    try apply~ weaken_constr_subtyping;
     (rewrite concat_empty_r || rewrite <- EqG); assumption
   end.
 
@@ -138,6 +140,15 @@ Lemma weaken_cty_trm : forall C G1 G2 t T,
     (C, G1) ⊢c t : T ->
     ok (G1 & G2) ->
     (C, G1 & G2) ⊢c t : T.
+Proof.
+  weaken_specialize.
+Qed.
+
+(** Weakening lemma specialized to subtyping. *)
+Lemma weaken_csubtyp: forall C G1 G2 S U,
+  (C, G1) ⊢c S <: U ->
+  ok (G1 & G2) ->
+  (C, G1 & G2) ⊢c S <: U.
 Proof.
   weaken_specialize.
 Qed.

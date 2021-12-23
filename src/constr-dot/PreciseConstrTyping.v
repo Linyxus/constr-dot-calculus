@@ -49,3 +49,27 @@ Inductive cty_val_p : (constr * ctx) -> val -> typ -> Prop :=
 where "e '⊢c!v' v ':' T" := (cty_val_p e v T).
 
 Hint Constructors cty_val_p.
+
+(** The precise type of a value is inert. *)
+Lemma constr_precise_inert_typ : forall C G v T,
+    (C, G) ⊢c!v v : T ->
+    inert_typ T.
+Proof.
+  introv Ht. inversions Ht; constructor; rename T0 into T.
+  constr_pick_fresh z. assert (Hz: z \notin L) by auto.
+  match goal with
+  | [H: forall x, _ \notin _ -> _,
+     Hz: ?z \notin _ |- _] =>
+    specialize (H z Hz);
+      pose proof (cty_defs_record_type H);
+      assert (Hz': z \notin fv_typ T) by auto;
+      apply* record_type_open
+  end.
+Qed.
+
+Lemma constr_precise_to_general_v: forall C G v T,
+    (C, G) ⊢c!v v : T ->
+    (C, G) ⊢c trm_val v: T.
+Proof.
+  intros. induction H; intros; subst; eauto.
+Qed.

@@ -261,6 +261,28 @@ Proof.
 Qed.
 Hint Resolve constr_well_typed_push.
 
+Lemma constr_satisfy_push : forall tm vm C G x T,
+    ok G ->
+    (tm, vm, G) ⊧ C ->
+    x # G ->
+    (tm, vm, G & x ~ T) ⊧ C.
+Proof.
+  introv Hok Hsat HxG.
+  dependent induction Hsat; eauto.
+  - apply* sat_typ. apply* weaken_ty_trm.
+  - apply* sat_sub. apply* weaken_subtyp.
+Qed.
+
+Lemma constr_satisfiable_push : forall C G x T,
+    ok G ->
+    G ⊨ C ->
+    x # G ->
+    G & x ~ T ⊨ C.
+Proof.
+  introv Hok Hsat HxG. destruct Hsat as [tm [vm Hsat]].
+  exists tm vm. apply* constr_satisfy_push.
+Qed.
+
 (** [s: G]              #<br>#
     [G(x) = T]          #<br>#
     [―――――――――――――]     #<br>#

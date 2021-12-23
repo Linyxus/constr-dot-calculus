@@ -42,24 +42,26 @@ Ltac constr_subst_solver :=
     end.
 
 Lemma general_subtyping_weaken_constr : forall C1 C2 G x S S' T U,
+    ok G ->
     S' ⩭ S ->
     (C1, G) ⊢c trm_var (avar_f x) : S ->
     (C1 ⋏ C2 ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S', G) ⊢c T <: U ->
     (C1 ⋏ C2, G) ⊢c T <: U.
 Proof.
-  introv Hiso HS HTU. gen T U S' C2.
+  introv Hok Hiso HS HTU. gen T U S' C2.
   dependent induction HS; introv Hiso; introv HTU; eauto 2.
-  - specialize (IHHS _ _ _ eq_refl eq_refl).
+  - specialize (IHHS _ _ Hok _ JMeq_refl eq_refl).
     destruct (iso_ctyp_exists (open_typ x T)) as [s Hs].
     specialize (IHHS T0 U _ Hs). apply IHHS.
     eapply strengthen_constr_general_subtyping; try apply HTU.
-    admit.
-  - specialize (IHHS _ _ _ eq_refl eq_refl).
+    apply ent_cong_and_right. apply* ent_ty_rec_intro.
+  - specialize (IHHS _ _ Hok _ JMeq_refl eq_refl).
     destruct (iso_ctyp_exists (typ_bnd T)) as [s Hs].
     specialize (IHHS T0 U _ Hs). apply IHHS.
-    admit.
-  - specialize (IHHS1 _ _ _ eq_refl eq_refl).
-    specialize (IHHS2 _ _ _ eq_refl eq_refl).
+    eapply strengthen_constr_general_subtyping; try apply HTU.
+    apply ent_cong_and_right. apply* ent_ty_rec_elim.
+  - specialize (IHHS1 _ _ Hok _ JMeq_refl eq_refl).
+    specialize (IHHS2 _ _ Hok _ JMeq_refl eq_refl).
     destruct (iso_ctyp_exists T) as [t Ht].
     destruct (iso_ctyp_exists U) as [u Hu].
     specialize (IHHS1 T0 U0 _ Ht).
@@ -67,36 +69,53 @@ Proof.
     apply IHHS1.
     eapply strengthen_constr_general_subtyping. apply ent_and_assoc.
     apply IHHS2.
-    admit.
-  - specialize (IHHS _ _ _ eq_refl eq_refl).
+    eapply strengthen_constr_general_subtyping; try apply HTU.
+    introe. inv_sat. inversion H3; subst. inversion H8; subst.
+    clear H3 H8. apply sat_and. constructor*.
+    eapply ent_ty_and_intro. apply Ht. apply Hu. apply Hiso. assumption.
+    constructor*.
+  - specialize (IHHS _ _ Hok _ JMeq_refl eq_refl).
     destruct (iso_ctyp_exists T) as [t Ht].
     specialize (IHHS T0 U0 _ Ht). apply IHHS.
-    admit.
-
-(** The admitted case requires us to prove a series of entailment laws.
-    All of them look provable. *)
-Admitted.
+    (** --TODO: non-trivial case is here! *)
+    (* eapply strengthen_constr_general_subtyping; try apply HTU. *)
+    destruct (min_complete_exists G) as [rG Hr].
+    Check subtyp_imply_ent.
+    lets Hsub: (subtyp_imply_ent Hr Ht Hiso H).
+    destruct (iso_ctyp_exists T0) as [t0 Ht0].
+    destruct (iso_ctyp_exists U0) as [u0 Hu0].
+    apply* ent_imply_subtyp.
+    lets Hsub2: (subtyp_imply_ent Hr Ht0 Hu0 HTU).
+    Check ent_and_intro.
+    eapply ent_trans.
+      eapply ent_and_intro.
+    assert (He1: ((C1 ⋏ C2) ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ t) ⋏ rG ⊩ t <⦂ S'). {
+      intros tm vm G0 HG Hsat. inversions Hsat.
+      inversions H2. inversions H3. apply Hsub; auto.
+    }
+    exact He1.
+    eapply ent_trans; try exact Hsub2.
+    intros tm vm G0 Hi Hsat.
+    inversions Hsat. inversions H2. inversions H3.
+    apply* sat_and. apply* sat_and.
+    eapply ent_ty_var_sub. exact Ht. exact Hiso. assumption.
+    apply* sat_and.
+Qed.
 
 (** This lemma is a trivial corollary of the [[general_subtyping_weaken_constr]] theorem. *)
 Lemma general_csubtyp_weaken_constr : forall C G x S S' T U,
+    ok G ->
     S' ⩭ S ->
     (C, G) ⊢c trm_var (avar_f x) : S ->
     (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S', G) ⊢c T <: U ->
     (C, G) ⊢c T <: U.
 Proof.
-Admitted.
-
-Lemma subst_csubtyp_aux1 : forall C1 C2 G x S S' y T,
-    S' ⩭ S ->
-    (C1, G) ⊢c trm_var (avar_f x) : S ->
-    (C1 ⋏ C2 ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S', G) ⊢c trm_var (avar_f y) : T ->
-    (C1 ⋏ C2, G) ⊢c trm_var (avar_f y) : T.
-Proof.
-  introv Hiso HS HT.
-  dependent induction HT; eauto 4.
-  specialize (IHHT _ _ _ _ _ _ Hiso HS eq_refl eq_refl).
-  eapply cty_sub. exact IHHT. eapply general_subtyping_weaken_constr.
-  exact Hiso. exact HS. exact H.
+  introv Hok Hiso HS HTU.
+  apply strengthen_constr_general_subtyping with (C2:=C ⋏ ⊤).
+  apply ent_and_true_intro2.
+  eapply general_subtyping_weaken_constr; try eassumption.
+  apply* strengthen_constr_general_subtyping.
+  apply ent_cong_and. apply ent_and_left.
 Qed.
 
 Lemma ent_subst_comm : forall x y C D,
@@ -131,7 +150,9 @@ Proof.
     specialize (IHHTU H1). simpl in IHHTU. cases_if.
     -- assert (Hiso' : subst_ctyp x y S0 ⩭ subst_typ x y S). { admit. }
        (** --TODO: Prove lemma: S ⩭ T implies [y/x] S ⩭ [y/x] T. *)
-       eapply general_csubtyp_weaken_constr. exact Hiso'.
+       eapply general_csubtyp_weaken_constr.
+       unfold subst_ctx. apply* ok_concat_map.
+       exact Hiso'.
        exact HS. exact IHHTU.
     -- assert (B : binds x0 (subst_typ x y S') (G1 & subst_ctx x y G2)). { admit. }
        assert (Hiso' : subst_ctyp x y S0 ⩭ subst_typ x y S'). { admit. }

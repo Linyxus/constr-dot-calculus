@@ -410,12 +410,6 @@ Proof.
   - eapply tight_constr_subtyping_trans_aux; eassumption.
 Qed.
 
-Lemma constr_subtyping_trans : forall C G S T U,
-    (C, G) ⊢c S <: T ->
-    (C, G) ⊢c T <: U ->
-    (C, G) ⊢c S <: U.
-Admitted.
-
 Theorem tight_to_constr_subtyping : forall C G T U,
     G ⊢# T <: U ->
     (C, G) ⊢c# T <: U.
@@ -425,6 +419,12 @@ Admitted.
 Theorem general_to_constr_subtyping : forall C G T U,
     G ⊢ T <: U ->
     (C, G) ⊢c T <: U.
+Admitted.
+
+Lemma constr_subtyping_trans : forall C G S T U,
+    (C, G) ⊢c S <: T ->
+    (C, G) ⊢c T <: U ->
+    (C, G) ⊢c S <: U.
 Admitted.
 
 Theorem invertible_constr_typing_closure_tight_aux : forall C G x T U,

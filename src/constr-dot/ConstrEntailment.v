@@ -199,3 +199,19 @@ Proof.
   subst S' T'0. assert (G ⊢ S'0 <: T') as Hsub. eauto.
   apply sat_sub with (S' := S'0) (T' := T'); try apply* strengthen_map_ctyp. auto.
 Qed.
+
+Lemma ent_ty_var_sub : forall x S T s t,
+    s ⩭ S ->
+    t ⩭ T ->
+    ctrm_cvar (cvar_x (avar_f x)) ⦂ s ⋏ s <⦂ t ⊩ ctrm_cvar (cvar_x (avar_f x)) ⦂ t.
+Proof.
+  introv Hs Ht. introe.
+  inv_sat. inv_sat. inv_sat.
+  inversion H6; subst. inversions H4.
+  lets Hs1: (map_iso_ctyp tm vm Hs).
+  lets Ht1: (map_iso_ctyp tm vm Ht).
+  lets Heq1: (map_ctyp_unique_typ H5 Hs1).
+  lets Heq2: (map_ctyp_unique_typ H10 Hs1). subst.
+  lets Heq: (map_ctyp_unique_typ H8 Ht1). subst.
+  apply* sat_typ.
+Qed.

@@ -159,3 +159,42 @@ Proof.
   apply constr_sta_trm_typ_c with (C:=C) (G:=G & G'); auto. apply* inert_concat.
 Qed.
 
+(** * Progress *)
+
+(** ** Progress Theorem *)
+
+(** [⊢ (s, t): T]           #<br>#
+    [(s, t) |-> (s', t')]   #<br>#
+    [―――――――――――――――――――]   #<br>#
+    [t] is in normal form   #<br>#
+    or [exists s', t'] such that [(s, t) |-> (s', t')] *)
+Theorem progress: forall s t T,
+    ⊢c (s, t) : T ->
+    norm_form t \/ exists s' t', (s, t) |-> (s', t').
+Proof.
+  introv Ht. inversion Ht as [C G s' t' T' Hi Hsat Hwt HT]. subst.
+  dependent induction HT; eauto.
+  - Case "ty_all_elim"%string.
+    pose proof (constr_canonical_forms_fun Hi Hsat Hwt HT1). destruct_all. right*.
+  - Case "ty_new_elim"%string.
+    pose proof (constr_canonical_forms_obj Hi Hsat Hwt HT). destruct_all. right*.
+  - Case "ty_let"%string.
+    Ltac solve_let_prog :=
+      match goal with
+      | [IH: forall G, inert _ ->
+             forall C, _ ⊨ _ ->
+             constr_well_typed _ _ _ ->
+             ⊢c (?s, ?t) : ?T ->
+             _ = _ -> _,
+         Hi: inert _,
+         Hsat: _ ⊨ _,
+         Hwt: constr_well_typed _ _ _ |- _] =>
+        idtac IH;
+        assert (⊢c (s, t): T) as Hs by eauto;
+        specialize (IH _ Hi _ Hsat Hwt Hs eq_refl) as [IH | [s' [t' Hr]]];
+        eauto; inversion IH
+      end.
+    right. destruct t; try solve [solve_let_prog].
+    + pose proof (constr_var_typing_implies_avar_f HT) as [x A]. subst*.
+    + constr_pick_fresh x. exists (s & x ~ v) (open_trm x u). auto.
+Qed.

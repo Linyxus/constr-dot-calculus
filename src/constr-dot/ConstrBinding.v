@@ -126,3 +126,11 @@ Proof.
     eauto using subst_fresh_ctyp, subst_fresh_ctrm_cval_cdef_cdefs.
   apply* subst_fresh_ctrm_cval_cdef_cdefs.
 Qed.
+
+(** If a variable has a type, then it is a named variable. *)
+Lemma constr_var_typing_implies_avar_f: forall C G a T,
+    (C, G) ⊢c trm_var a : T ->
+    exists x, a = avar_f x.
+Proof.
+  introv H; dependent induction H; eauto.
+Qed.

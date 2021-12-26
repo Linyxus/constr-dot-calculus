@@ -157,14 +157,20 @@ Proof.
        unfold subst_ctx. apply* ok_concat_map.
        exact Hiso'.
        exact HS. exact IHHTU.
-    -- assert (B : binds x0 (subst_typ x y S') (G1 & subst_ctx x y G2)). { eauto. }
-       assert (Hiso' : subst_ctyp x y S0 ⩭ subst_typ x y S'). { admit. }
+    -- assert (B : binds x0 (subst_typ x y S') (G1 & subst_ctx x y G2)). {
+         (* useful lemmas *)
+         Check binds_subst.
+         Check subst_fresh_ctx.
+         lets Heq: (subst_fresh_ctx y _ Hx).
+         rewrite <- Heq.
+         unfold subst_ctx. rewrite <- map_concat.
+         apply~ binds_map. apply* binds_subst.
+       }
+       assert (Hiso' : subst_ctyp x y S0 ⩭ subst_typ x y S'). { apply* subst_iso_ctyp. }
        eapply csubtyp_intro. exact Hiso'. exact B.
        exact IHHTU.
+  - admit.
 Admitted.
-(*   - assert (Hs : subst_ctyp x y S0 ⩭ subst_typ x y S'). {admit.} *)
-(*     assert (Ht : subst_ctyp x y T ⩭ subst_typ x y T'). {admit.} *)
-(* Admitted. *)
 
 (** The proof is by mutual induction on term typing, definition typing, and subtyping. *)
 Lemma constr_subst_rules: forall y S,

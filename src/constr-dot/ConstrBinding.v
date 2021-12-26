@@ -134,3 +134,15 @@ Lemma constr_var_typing_implies_avar_f: forall C G a T,
 Proof.
   introv H; dependent induction H; eauto.
 Qed.
+
+Lemma subst_iso_ctyp : forall x y t T,
+    t ⩭ T ->
+    subst_ctyp x y t ⩭ subst_typ x y T
+with subst_iso_cdec : forall x y d D,
+    iso_cdec_dec d D ->
+    iso_cdec_dec (subst_cdec x y d) (subst_dec x y D).
+Proof.
+  all: introv Hiso.
+  - dependent induction Hiso; try constructor*.
+  - dependent induction Hiso; try constructor*.
+Qed.

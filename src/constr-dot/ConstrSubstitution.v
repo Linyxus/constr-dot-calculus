@@ -148,13 +148,16 @@ Proof.
         apply ent_and_left. exact HS.
     }
     specialize (IHHTU H1). simpl in IHHTU. cases_if.
-    -- assert (Hiso' : subst_ctyp x y S0 ⩭ subst_typ x y S). { admit. }
+    -- lets Hiso': (subst_iso_ctyp x y H).
        (** --TODO: Prove lemma: S ⩭ T implies [y/x] S ⩭ [y/x] T. *)
+       lets B1: (binds_push_eq x S G1).
+       lets B2: (binds_concat_left_ok Hok B1).
+       lets Heq: (binds_functional H0 B2). subst.
        eapply general_csubtyp_weaken_constr.
        unfold subst_ctx. apply* ok_concat_map.
        exact Hiso'.
        exact HS. exact IHHTU.
-    -- assert (B : binds x0 (subst_typ x y S') (G1 & subst_ctx x y G2)). { admit. }
+    -- assert (B : binds x0 (subst_typ x y S') (G1 & subst_ctx x y G2)). { eauto. }
        assert (Hiso' : subst_ctyp x y S0 ⩭ subst_typ x y S'). { admit. }
        eapply csubtyp_intro. exact Hiso'. exact B.
        exact IHHTU.

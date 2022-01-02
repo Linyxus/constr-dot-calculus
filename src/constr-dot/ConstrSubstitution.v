@@ -14,6 +14,7 @@ Require Import ConstrLangAlt ConstrTyping ConstrNarrowing ConstrInterp.
 Require Import ConstrBinding ConstrEntailment ConstrWeakening.
 Require Import ConstrSubtypingLaws EntailmentLaws.
 Require Import StrengtheningConstr.
+Require Import ConstrSatisfy.
 
 Ltac constr_fresh_constructor :=
   match goal with

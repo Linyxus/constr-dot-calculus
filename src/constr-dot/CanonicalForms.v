@@ -152,6 +152,27 @@ Proof.
   exists U' T'. split. assumption. split. assumption. apply* tight_to_general.
 Qed.
 
+Lemma var_typ_rcd_typ_to_binds: forall G x a T U,
+    inert G ->
+    G ⊢ trm_var (avar_f x) : typ_rcd (dec_typ a T U) ->
+    (exists S T' U',
+        binds x (typ_bnd S) G /\
+        record_has (open_typ x S) (dec_typ a T' U') /\
+        G ⊢ T <: T' /\
+        G ⊢ U' <: U).
+Proof.
+  introv Hin Ht.
+  destruct (typing_implies_bound Ht) as [S BiG].
+  lets Htt: (general_to_tight_typing Hin Ht).
+  lets Hinv: (tight_to_invertible Hin Htt).
+  destruct (invertible_to_precise_typ_dec Hinv) as [T' [U' [U0 [Htp Hs]]]].
+  destruct (pf_inert_rcd_U Hin Htp) as [U'1 Hr]. subst.
+  lets Hr': (precise_flow_record_has Hin Htp). apply pf_binds in Htp.
+  exists U'1 T' U'. split. assumption. split. assumption.
+  destruct Hs. split.
+  apply~ tight_to_general. assumption.
+Qed.
+
 (** This lemma corresponds to Lemma 3.10 ([mu] to [nu]) in the paper.
 
     [inert G]                  #<br>#

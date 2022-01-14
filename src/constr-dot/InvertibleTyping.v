@@ -1,4 +1,4 @@
-(** printing ⊢#    %\vdash_{\#}%    #&vdash;<sub>&#35;</sub>#     *)
+(** printing ⊢#    %\vdash_{ \#}%    #&vdash;<sub>&#35;</sub>#     *)
 (** printing ⊢##   %\vdash_{\#\#}%  #&vdash;<sub>&#35&#35</sub>#  *)
 (** printing ⊢##v  %\vdash_{\#\#v}% #&vdash;<sub>&#35&#35v</sub># *)
 (** printing ⊢!    %\vdash_!%       #&vdash;<sub>!</sub>#         *)
@@ -87,7 +87,7 @@ Inductive ty_var_inv : ctx -> var -> typ -> Prop :=
   G ⊢## x : S2 ->
   G ⊢## x : typ_and S1 S2
 
-(** [G ⊢## x: S]        #<br>#
+          (** [G ⊢## x: S]        #<br>#
     [G ⊢! y: {A: S..S}] #<br>#
     [――――――――――――――――――] #<br>#
     [G ⊢## x: y.A           *)
@@ -177,6 +177,28 @@ Proof.
   - specialize (IHHinv _ _ eq_refl). destruct IHHinv as [V [V' [Hx Hs]]].
     exists V V'. split; auto.
     eapply subtyp_trans_t; eassumption.
+Qed.
+
+(** Invertible-to-precise typing for field declarations: #<br>#
+    [G ⊢## x: {a: T}]            #<br>#
+    [――――――――――――――――――――――]      #<br>#
+    [exists T', G ⊢! x: {a: T'}]      #<br>#
+    [G ⊢# T' <: T]. *)
+Lemma invertible_to_precise_typ_dec: forall G x A T U,
+  G ⊢## x : typ_rcd (dec_typ A T U) ->
+  exists T' U' U0,
+    G ⊢! x : U0 ⪼ typ_rcd (dec_typ A T' U') /\
+    G ⊢# T <: T' /\
+    G ⊢ U' <: U.
+Proof.
+  introv Hinv.
+  dependent induction Hinv.
+  - exists T U T0. auto.
+  - specialize (IHHinv _ _ _ eq_refl). destruct IHHinv as [V [V' [V0 [Hx Hs]]]].
+    exists V V' V0. split; auto.
+    destruct Hs as [Hs1 Hs2].
+    split. eapply subtyp_trans_t; eassumption.
+    eapply subtyp_trans. eassumption. apply~ tight_to_general.
 Qed.
 
 (** Invertible-to-precise typing for function types: #<br>#

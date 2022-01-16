@@ -351,6 +351,62 @@ Proof.
   apply cty_all_inv with (L \u \{x}) S0 T; eauto.
 Qed.
 
+Theorem weaken_constr_subtyping : forall x S S' C G T U,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) ⊢c T <: U ->
+    (C, G) ⊢c T <: U.
+Proof.
+  introv Hiso Hx HT.
+  eapply csubtyp_intro. exact Hiso. exact Hx. exact HT.
+Qed.
+
+Theorem weaken_constr_general_typing : forall x S S' C G t T,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) ⊢c t : T ->
+    (C, G) ⊢c t : T
+with weaken_constr_general_typing_def : forall x S S' C G d D,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) /-c d : D ->
+    (C, G) /-c d : D
+with weaken_constr_general_typing_defs : forall x S S' C G ds D,
+    S ⩭ S' ->
+    binds x S' G ->
+    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) /-c ds :: D ->
+    (C, G) /-c ds :: D.
+Proof.
+  all: introv Hiso Hb HT.
+  - dependent induction HT.
+    -- constructor. exact H.
+    -- apply cty_all_intro with (L \u \{x}). eauto.
+    -- apply cty_all_elim with S0. apply* IHHT1.
+       apply* IHHT2.
+    -- apply cty_new_intro with (L \u \{x}). intros y Hne.
+       eapply weaken_constr_general_typing_defs.
+       apply Hiso.
+       assert (Hb' : binds x S' (G & y ~ open_typ y T)) by eauto.
+       exact Hb'. apply~ H.
+    -- apply cty_new_elim. apply* IHHT.
+    -- apply cty_let with (L \u \{x}) T. apply* IHHT. intros y Hne.
+       apply~ H0. exact Hiso. eauto.
+    -- apply cty_rec_intro. apply* IHHT.
+    -- apply cty_rec_elim. apply* IHHT.
+    -- apply cty_and_intro. apply* IHHT1. apply* IHHT2.
+    -- apply cty_sub with T. apply* IHHT. eapply weaken_constr_subtyping.
+       apply Hiso. apply Hb. apply H.
+  - dependent induction HT.
+    -- apply cty_def_typ.
+    -- apply cty_def_trm. eapply weaken_constr_general_typing.
+       exact Hiso. exact Hb. exact H.
+  - dependent induction HT.
+    -- apply cty_defs_one. eapply weaken_constr_general_typing_def.
+       exact Hiso. exact Hb. exact H.
+    -- apply cty_defs_cons. apply* IHHT. eapply weaken_constr_general_typing_def; eassumption.
+       exact H0.
+Qed.
+
 Ltac csubtyp_t_to_ent :=
   match goal with
   | |- (?E, _) ⊢c# ?T <: ?U =>
@@ -409,6 +465,21 @@ Proof.
     apply tight_ent_and_elim1. exact Htu.
   - eapply tight_constr_subtyping_trans_aux; eassumption.
 Qed.
+
+Lemma constr_subtyping_all : forall L C G S1 T1 S2 T2,
+    (C, G) ⊢c S2 <: S1 ->
+    (forall x, x \notin L ->
+        (C, G & x ~ S2) ⊢c open_typ x T1 <: open_typ x T2) ->
+    (C, G) ⊢c typ_all S1 T1 <: typ_all S2 T2.
+Proof.
+  introv Hs Ht.
+  dependent induction Hs.
+  - specialize (IHHs _ _ eq_refl).
+    eapply weaken_constr_subtyping. exact H. exact H0.
+    apply IHHs. introv Hx0. eapply strengthen_constr_general_subtyping.
+    apply ent_and_left. apply* Ht.
+  - admit.
+Admitted.
 
 Theorem tight_to_constr_subtyping : forall C G T U,
     G ⊢# T <: U ->
@@ -504,63 +575,6 @@ Proof.
     apply* tight_to_general_entailment.
 Qed.
 
-
-Theorem weaken_constr_subtyping : forall x S S' C G T U,
-    S ⩭ S' ->
-    binds x S' G ->
-    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) ⊢c T <: U ->
-    (C, G) ⊢c T <: U.
-Proof.
-  introv Hiso Hx HT.
-  eapply csubtyp_intro. exact Hiso. exact Hx. exact HT.
-Qed.
-
-
-Theorem weaken_constr_general_typing : forall x S S' C G t T,
-    S ⩭ S' ->
-    binds x S' G ->
-    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) ⊢c t : T ->
-    (C, G) ⊢c t : T
-with weaken_constr_general_typing_def : forall x S S' C G d D,
-    S ⩭ S' ->
-    binds x S' G ->
-    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) /-c d : D ->
-    (C, G) /-c d : D
-with weaken_constr_general_typing_defs : forall x S S' C G ds D,
-    S ⩭ S' ->
-    binds x S' G ->
-    (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ S, G) /-c ds :: D ->
-    (C, G) /-c ds :: D.
-Proof.
-  all: introv Hiso Hb HT.
-  - dependent induction HT.
-    -- constructor. exact H.
-    -- apply cty_all_intro with (L \u \{x}). eauto.
-    -- apply cty_all_elim with S0. apply* IHHT1.
-       apply* IHHT2.
-    -- apply cty_new_intro with (L \u \{x}). intros y Hne.
-       eapply weaken_constr_general_typing_defs.
-       apply Hiso.
-       assert (Hb' : binds x S' (G & y ~ open_typ y T)) by eauto.
-       exact Hb'. apply~ H.
-    -- apply cty_new_elim. apply* IHHT.
-    -- apply cty_let with (L \u \{x}) T. apply* IHHT. intros y Hne.
-       apply~ H0. exact Hiso. eauto.
-    -- apply cty_rec_intro. apply* IHHT.
-    -- apply cty_rec_elim. apply* IHHT.
-    -- apply cty_and_intro. apply* IHHT1. apply* IHHT2.
-    -- apply cty_sub with T. apply* IHHT. eapply weaken_constr_subtyping.
-       apply Hiso. apply Hb. apply H.
-  - dependent induction HT.
-    -- apply cty_def_typ.
-    -- apply cty_def_trm. eapply weaken_constr_general_typing.
-       exact Hiso. exact Hb. exact H.
-  - dependent induction HT.
-    -- apply cty_defs_one. eapply weaken_constr_general_typing_def.
-       exact Hiso. exact Hb. exact H.
-    -- apply cty_defs_cons. apply* IHHT. eapply weaken_constr_general_typing_def; eassumption.
-       exact H0.
-Qed.
 
 Theorem weaken_constr_precise_typing : forall x S S' C G v T,
     S ⩭ S' ->

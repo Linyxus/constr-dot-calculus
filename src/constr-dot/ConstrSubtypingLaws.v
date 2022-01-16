@@ -11,6 +11,15 @@ Require Import ConstrLangAlt ConstrTyping ConstrInterp ConstrEntailment.
 Require Import EntailmentLaws.
 Require Import Coq.Program.Equality.
 
+Lemma csubtyp_top : forall C G T,
+    (C, G) ⊢c T <: typ_top.
+Proof.
+  introv.
+  destruct (iso_ctyp_exists T) as [t Ht].
+  eapply csubtyp_inst. exact Ht. exact iso_ctyp_top.
+  apply* ent_sub_top.
+Qed.
+
 Lemma csubtyp_refl : forall C G T,
     (C, G) ⊢c T <: T.
 Proof.

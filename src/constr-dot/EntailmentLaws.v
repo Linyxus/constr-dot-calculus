@@ -41,11 +41,46 @@ Qed.
 
 (** * Type System Laws *)
 
+Lemma ent_sub_top : forall C T T',
+    T ⩭ T' ->
+    C ⊩ T <⦂ ctyp_top.
+Proof.
+  introv Hiso. apply ent_trivial. introe.
+  lets Hm: (map_iso_ctyp tm vm Hiso).
+  eapply sat_sub. exact Hm. constructor.
+  eauto.
+Qed.
+
+Lemma ent_sub_bot : forall C T T',
+    T ⩭ T' ->
+    C ⊩ ctyp_bot <⦂ T.
+Proof.
+  introv Hiso. apply ent_trivial. introe.
+  lets Hm: (map_iso_ctyp tm vm Hiso).
+  eapply sat_sub. constructor. exact Hm.
+  eauto.
+Qed.
+
 Lemma ent_sub_refl' : forall C T T',
     T ⩭ T' ->
     C ⊩ T <⦂ T.
 Proof.
   introv Hiso. apply ent_trivial. apply* ent_sub_refl.
+Qed.
+
+Lemma ent_sub_fld : forall C a t T u U,
+    t ⩭ T ->
+    u ⩭ U ->
+    C ⊩ t <⦂ u ->
+    C ⊩ ctyp_rcd (cdec_trm a t) <⦂ ctyp_rcd (cdec_trm a u).
+Proof.
+  introv Ht Hu Htu. introe. apply Htu in H; eauto. inversions H.
+  lets Hmt: (map_iso_ctyp tm vm Ht).
+  lets Heqm: (map_ctyp_unique_typ H5 Hmt). subst. clear H5.
+  lets Hmu: (map_iso_ctyp tm vm Hu).
+  lets Hequ: (map_ctyp_unique_typ H7 Hmu). subst. clear H7.
+  eapply sat_sub; try apply map_ctyp_rcd; try apply map_cdec_trm; try eassumption.
+  eauto.
 Qed.
 
 Lemma ent_ty_rec_intro : forall x T T1 T2,

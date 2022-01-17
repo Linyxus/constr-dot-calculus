@@ -17,4 +17,6 @@
 - [ConstrTyping.v](src/constr-dot/ConstrTyping.v) defines the type system
   with constraints. <!-- It currently use the definition in -->
   <!-- [ConstrLang.v](src/constr-dot/ConstrLang.v). -->
+- [ConstrSafety.v](src/constr-dot/ConstrSafety.v) states and proves the
+  soundness theorems (preservation and progress) for cDOT.
 

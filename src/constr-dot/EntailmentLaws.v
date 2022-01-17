@@ -8,6 +8,7 @@ Set Implicit Arguments.
 
 Require Import Definitions RecordAndInertTypes.
 Require Import ConstrLangAlt ConstrTyping ConstrInterp ConstrEntailment.
+Require Import Weakening.
 Require Import Coq.Program.Equality.
 
 Lemma ent_trivial : forall C D,
@@ -82,6 +83,52 @@ Proof.
   eapply sat_sub; try apply map_ctyp_rcd; try apply map_cdec_trm; try eassumption.
   eauto.
 Qed.
+
+Lemma satisfy_weaken : forall tm vm G C x T,
+    ok G ->
+    (tm, vm, G) ⊧ C ->
+    x # G ->
+    (tm, vm, G & x ~ T) ⊧ C.
+Proof.
+  introv Hok Hsat HxG. gen x.
+  dependent induction Hsat; introv HxG; eauto.
+  - assert (Hok1: ok (G & x ~ T)) by eauto.
+    eapply sat_typ; try eassumption. apply* weaken_ty_trm.
+  - assert (Hok1: ok (G & x ~ T)) by eauto.
+    eapply sat_sub; try eassumption. apply* weaken_subtyp.
+Qed.
+
+Lemma ent_sub_all : forall L C s1 t1 s2 t2 S1 T1 S2 T2,
+    s1 ⩭ S1 ->
+    s2 ⩭ S2 ->
+    t1 ⩭ T1 ->
+    t2 ⩭ T2 ->
+    C ⊩ s2 <⦂ s1 ->
+    (forall x t1' t2', x \notin L ->
+      t1' ⩭ open_typ x T1 ->
+      t2' ⩭ open_typ x T2 ->
+      C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ s2 ⊩ t1' <⦂ t2') ->
+    C ⊩ ctyp_all s1 t1 <⦂ ctyp_all s2 t2.
+Proof.
+  introv Hs1 Hs2 Ht1 Ht2 HS HT. introe.
+  pose proof (map_iso_ctyp tm vm Hs1) as Hms1.
+  pose proof (map_iso_ctyp tm vm Hs2) as Hms2.
+  pose proof (map_iso_ctyp tm vm Ht1) as Hmt1.
+  pose proof (map_iso_ctyp tm vm Ht2) as Hmt2.
+  apply HS in H as HS1; try assumption. inversions HS1.
+  lets Heqs1: (map_ctyp_unique_typ Hms1 H7). subst T'. clear H7.
+  lets Heqs2: (map_ctyp_unique_typ Hms2 H5). subst S'. clear H5.
+  eapply sat_sub; try apply map_ctyp_all; try eassumption.
+  apply subtyp_all with (L:=L \u dom G). assumption.
+  introv Hx.
+  destruct (iso_ctyp_exists (open_typ x T1)) as [u1 Hu1].
+  destruct (iso_ctyp_exists (open_typ x T2)) as [u2 Hu2].
+  assert (HxL: x \notin L) by eauto. specialize (HT x u1 u2 HxL Hu1 Hu2).
+  assert (Hsat: (tm, vm, G & x ~ S2) ⊧ C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ s2).
+  { admit. }
+  apply HT in Hsat; try assumption.
+Admitted.
+
 
 Lemma ent_ty_rec_intro : forall x T T1 T2,
     T1 ⩭ open_typ x T ->

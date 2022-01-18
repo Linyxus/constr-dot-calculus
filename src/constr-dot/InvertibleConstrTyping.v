@@ -17,6 +17,7 @@ Require Import TightTyping.
 Require Import ConstrLangAlt ConstrTyping TightConstrTyping PreciseConstrTyping.
 Require Import TightConstrEntailment ConstrEntailment.
 Require Import TightConstrInterp.
+Require Import EntailmentLaws.
 Require Import ConstrInterp.
 Require Import MinimalComplete.
 
@@ -490,10 +491,21 @@ Proof.
 Qed.
 
 Lemma constr_subtyping_trans : forall C G S T U,
+    ok G ->
     (C, G) ⊢c S <: T ->
     (C, G) ⊢c T <: U ->
     (C, G) ⊢c S <: U.
-Admitted.
+Proof.
+  introv Hok HST HTU.
+  destruct (iso_ctyp_exists S) as [s Hs].
+  destruct (iso_ctyp_exists T) as [t Ht].
+  destruct (iso_ctyp_exists U) as [u Hu].
+  destruct (min_complete_exists G) as [rG Hr].
+  apply subtyp_imply_ent with (rG:=rG) (T:=s) (U:=t) in HST; try assumption.
+  apply subtyp_imply_ent with (rG:=rG) (T:=t) (U:=u) in HTU; try assumption.
+  eapply ent_imply_subtyp. exact Hok. exact Hr. exact Hs. exact Hu.
+  eapply ent_sub_trans'. exact HST. exact HTU.
+Qed.
 
 Theorem invertible_constr_typing_closure_tight_aux : forall C G x T U,
     inert G ->
@@ -746,7 +758,7 @@ Proof.
       apply tight_to_general_constr_typing in H; auto.
       assert (Hnarrow: (C, G & y ~ S) ⊢c open_typ y T' <: open_typ y T0).
       { eapply narrow_constr_subtyping; auto using subenv_last. }
-      eapply constr_subtyping_trans. apply Hnarrow.
+      eapply constr_subtyping_trans. eauto. apply Hnarrow.
       apply* H0.
 Qed.
 
@@ -769,11 +781,13 @@ Proof.
   - exists (dom G) S T. split; eauto using csubtyp_refl.
   - destruct (IHHt _ _ _ Hi _ eq_refl eq_refl) as [L' [S1 [T1 [Hp [Hss Hst]]]]].
     exists (L \u L' \u dom G) S1 T1. split. assumption. split. apply constr_subtyping_trans with (T:=S0).
+    eauto.
     apply* tight_to_general_constr_typing. assumption. intros.
     assert (ok (G & y ~ S)) as Hok. {
       apply* ok_push.
     }
     apply constr_subtyping_trans with (T:=open_typ y T0).
+    eauto.
     eapply narrow_constr_subtyping. apply* Hst. apply csubenv_last. apply* tight_to_general_constr_typing.
     assumption.
     apply* H0.

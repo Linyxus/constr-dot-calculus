@@ -69,6 +69,19 @@ Proof.
   introv Hiso. apply ent_trivial. apply* ent_sub_refl.
 Qed.
 
+Lemma ent_sub_trans' : forall C s t u,
+    C ⊩ s <⦂ t ->
+    C ⊩ t <⦂ u ->
+    C ⊩ s <⦂ u.
+Proof.
+  introv Hst Htu. introe.
+  apply Hst in H as Hsst; eauto.
+  apply Htu in H as Hstu; eauto.
+  inversions Hstu. inversions Hsst.
+  lets Heqs: (map_ctyp_unique_typ H5 H10). subst. clear H10.
+  eapply sat_sub. exact H6. exact H7. eauto.
+Qed.
+
 Lemma ent_sub_fld : forall C a t T u U,
     t ⩭ T ->
     u ⩭ U ->

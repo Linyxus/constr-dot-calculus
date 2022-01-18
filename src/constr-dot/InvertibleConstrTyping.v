@@ -718,12 +718,12 @@ Proof.
   introv Hi Hok He. eapply sat_sub; try apply* map_iso_ctyp; eauto.
 Qed.
 
-Lemma csubtyp_all_t: forall L C G S1 T1 S2 T2,
-    (C, G) ⊢c# S2 <: S1 ->
-    (forall x, x \notin L ->
-       (C, G & x ~ S2) ⊢c open_typ x T1 <: open_typ x T2) ->
-    (C, G) ⊢c# typ_all S1 T1 <: typ_all S2 T2.
-Admitted.
+(* Lemma csubtyp_all_t: forall L C G S1 T1 S2 T2, *)
+(*     (C, G) ⊢c# S2 <: S1 -> *)
+(*     (forall x, x \notin L -> *)
+(*        (C, G & x ~ S2) ⊢c open_typ x T1 <: open_typ x T2) -> *)
+(*     (C, G) ⊢c# typ_all S1 T1 <: typ_all S2 T2. *)
+(* Admitted. *)
 
 (** Invertible-to-precise typing for function types: #<br>#
     [ok G]                        #<br>#
@@ -749,8 +749,8 @@ Proof.
     destruct IHHinv as [S' [T' [V' [L' [Hpt [HSsub HTsub]]]]]].
     exists S' T' V' (dom G \u L \u L').
     split; eauto.
-    assert (Hsub2 : (C, G) ⊢c# typ_all S0 T0 <: typ_all S T).
-    { apply csubtyp_all_t with L; assumption. }
+    (* assert (Hsub2 : (C, G) ⊢c# typ_all S0 T0 <: typ_all S T). *)
+    (* { apply csubtyp_all_t with L; assumption. } *)
     split.
     + eapply tight_constr_subtyping_trans; eauto.
     + intros y Fr.

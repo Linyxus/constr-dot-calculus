@@ -32,12 +32,13 @@ Notation "'⊢c' t ':' T" := (constr_sta_trm_typ t T) (at level 40, t at level 5
     that is a subtype of [T].
     This lemma corresponds to Lemma 3.15 in the paper. *)
 Lemma constr_val_typing: forall C G v T,
+  ok G ->
   (C, G) ⊢c trm_val v : T ->
   exists T', (C, G) ⊢c!v v : T' /\
         (C, G) ⊢c T' <: T.
 Proof.
-  introv H. dependent induction H; eauto using csubtyp_refl.
-  destruct (IHcty_trm _ _ _ eq_refl eq_refl). destruct_all.
+  introv Hok H. dependent induction H; eauto using csubtyp_refl.
+  destruct (IHcty_trm _ _ Hok _ JMeq_refl eq_refl). destruct_all.
   eauto using constr_subtyping_trans.
 Qed.
 
@@ -126,7 +127,8 @@ Proof.
         | [Hn: ?x # ?s |- _] =>
           pose proof (constr_well_typed_notin_dom Hwf Hn) as Hng
       end.
-      pose proof (constr_val_typing Ht) as [V [Hv Hs]].
+      assert (Hok: ok G). { eauto. }
+      pose proof (constr_val_typing Hok Ht) as [V [Hv Hs]].
       exists (x ~ V). repeat_split_right.
       ** rewrite <- concat_empty_l. constructor~. apply (constr_precise_inert_typ Hv).
       ** apply~ constr_satisfiable_push.

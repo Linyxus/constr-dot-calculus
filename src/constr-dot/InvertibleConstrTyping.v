@@ -18,6 +18,7 @@ Require Import ConstrLangAlt ConstrTyping TightConstrTyping PreciseConstrTyping.
 Require Import TightConstrEntailment ConstrEntailment.
 Require Import TightConstrInterp.
 Require Import ConstrInterp.
+Require Import MinimalComplete.
 
 (** * Invertible Typing for Constraint-based System *)
 
@@ -466,21 +467,6 @@ Proof.
   - eapply tight_constr_subtyping_trans_aux; eassumption.
 Qed.
 
-Lemma constr_subtyping_all : forall L C G S1 T1 S2 T2,
-    (C, G) ⊢c S2 <: S1 ->
-    (forall x, x \notin L ->
-        (C, G & x ~ S2) ⊢c open_typ x T1 <: open_typ x T2) ->
-    (C, G) ⊢c typ_all S1 T1 <: typ_all S2 T2.
-Proof.
-  introv Hs Ht.
-  dependent induction Hs.
-  - specialize (IHHs _ _ eq_refl).
-    eapply weaken_constr_subtyping. exact H. exact H0.
-    apply IHHs. introv Hx0. eapply strengthen_constr_general_subtyping.
-    apply ent_and_left. apply* Ht.
-  - admit.
-Admitted.
-
 Theorem tight_to_constr_subtyping : forall C G T U,
     G ⊢# T <: U ->
     (C, G) ⊢c# T <: U.
@@ -488,9 +474,20 @@ Proof.
 Admitted.
 
 Theorem general_to_constr_subtyping : forall C G T U,
+    ok G ->
     G ⊢ T <: U ->
     (C, G) ⊢c T <: U.
-Admitted.
+Proof.
+  introv Hok HTU.
+  destruct (min_complete_exists G) as [rG Hr].
+  destruct (iso_ctyp_exists T) as [t Ht].
+  destruct (iso_ctyp_exists U) as [u Hu].
+  eapply ent_imply_subtyp. assumption.
+  exact Hr. exact Ht. exact Hu.
+  eapply ent_trans. apply ent_and_right.
+  eapply min_complete_entails_sub.
+  exact Hr. exact Ht. exact Hu. exact HTU.
+Qed.
 
 Lemma constr_subtyping_trans : forall C G S T U,
     (C, G) ⊢c S <: T ->
@@ -500,11 +497,12 @@ Admitted.
 
 Theorem invertible_constr_typing_closure_tight_aux : forall C G x T U,
     inert G ->
+    ok G ->
     (C, G) ⊢c## x : T ->
     G ⊢# T <: U ->
     (C, G) ⊢c## x : U.
 Proof.
-  introv Hi HT Hsub.
+  introv Hi Hok HT Hsub.
   dependent induction Hsub; eauto using tight_to_constr_subtyping.
   - inversion HT; subst.
     destruct (pf_bot_false Hi H3).
@@ -514,9 +512,9 @@ Proof.
     + false* pf_psel_false.
     + lets Hu: (x_bound_unique H H6). subst.
       pose proof (pf_inert_unique_tight_bounds Hi H H6) as Hu. subst. assumption.
-  - apply cty_all_inv with L S1 T1; eauto.
+  - apply cty_all_inv with (L \u dom G) S1 T1; eauto.
     apply* tight_to_constr_subtyping.
-    introv Hn. specialize (H y Hn).
+    introv Hn. assert (HnL : y \notin L) by eauto. specialize (H y HnL).
     apply* general_to_constr_subtyping.
 Qed.
 
@@ -611,11 +609,12 @@ Qed.
 
 Theorem invertible_constr_typing_closure_tight_v_aux : forall C G v T U,
     inert G ->
+    ok G ->
     (C, G) ⊢c##v v : T ->
     G ⊢# T <: U ->
     (C, G) ⊢c##v v : U.
 Proof.
-  introv Hi HT Hsub.
+  introv Hi Hok HT Hsub.
   dependent induction Hsub; eauto.
   - inversions HT; subst.
     inversions H3.
@@ -627,9 +626,9 @@ Proof.
     + inversions H4.
     + lets Hu: (x_bound_unique H H6). subst.
       pose proof (pf_inert_unique_tight_bounds Hi H H6) as Hu. subst. assumption.
-  - apply cty_all_inv_v with L S1 T1; eauto.
+  - apply cty_all_inv_v with (L \u dom G) S1 T1; eauto.
     apply* tight_to_constr_subtyping.
-    introv Hn. specialize (H y Hn).
+    introv Hn. assert (HnL: y \notin L) by eauto. specialize (H y HnL).
     apply* general_to_constr_subtyping.
 Qed.
 
@@ -684,7 +683,7 @@ Proof.
   dependent induction Hinv.
   - exists T T0. split; auto 1.
     destruct (iso_ctyp_exists T).
-    eapply csubtyp_inst_t; eauto. introv Hi He.
+    eapply csubtyp_inst_t; eauto. introv Hi Hok He.
     eapply sat_sub_t; try apply* map_iso_ctyp; eauto.
   - specialize (IHHinv _ _ _ _ eq_refl eq_refl).
     destruct IHHinv as [V [V' [Hx Hs]]].
@@ -696,7 +695,7 @@ Lemma csubtyp_t_refl : forall C G T,
 Proof.
   introv. destruct (iso_ctyp_exists T).
   eapply csubtyp_inst_t; eauto 1.
-  introv Hi He. eapply sat_sub_t; try apply* map_iso_ctyp; eauto.
+  introv Hi Hok He. eapply sat_sub_t; try apply* map_iso_ctyp; eauto.
 Qed.
 
 Lemma csubtyp_refl : forall C G T,
@@ -704,7 +703,7 @@ Lemma csubtyp_refl : forall C G T,
 Proof.
   introv. destruct (iso_ctyp_exists T).
   eapply csubtyp_inst; eauto 1.
-  introv Hi He. eapply sat_sub; try apply* map_iso_ctyp; eauto.
+  introv Hi Hok He. eapply sat_sub; try apply* map_iso_ctyp; eauto.
 Qed.
 
 Lemma csubtyp_all_t: forall L C G S1 T1 S2 T2,

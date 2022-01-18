@@ -21,13 +21,14 @@ Require Import TightConstrInterp.
 Definition constr_entail_t (C1 C2 : constr) :=
   forall tm vm G,
     inert G ->
+    ok G ->
     (tm, vm, G) ⊧# C1 -> (tm, vm, G) ⊧# C2.
 
 Notation "C '⊩#' D" := (constr_entail_t C D) (at level 50).
 
 Ltac introe_t :=
   match goal with
-  | |- _ => introv Hi He
+  | |- _ => introv Hi Hok He
   end.
 
 (** * Equivalence Theorems *)

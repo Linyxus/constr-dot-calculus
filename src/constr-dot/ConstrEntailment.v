@@ -17,13 +17,14 @@ Require Import Definitions RecordAndInertTypes Decompose ConstrLangAlt ConstrInt
 Definition constr_entail (C1 C2 : constr) :=
   forall tm vm G,
     inert G ->
+    ok G ->
     (tm, vm, G) ⊧ C1 -> (tm, vm, G) ⊧ C2.
 
 Notation "C '⊩' D" := (constr_entail C D) (at level 50).
 
 (** ** Tactics *)
 
-Ltac introe := introv H0 H.
+Ltac introe := introv H0 Hok H.
 
 Ltac inv_sat :=
   match goal with

@@ -10,6 +10,7 @@ Require Import TLC.LibList.
 Require Import Coq.Program.Equality String.
 Require Import Definitions Weakening Narrowing RecordAndInertTypes.
 Require Import ConstrLangAlt ConstrTyping ConstrWeakening ConstrSubenvironments.
+Require Import MinimalComplete.
 Require Import ConstrInterp ConstrEntailment.
 Require Import ConstrSubtypingLaws.
 Require Import StrengtheningConstr.
@@ -74,58 +75,6 @@ Proof.
     subst. assumption.
 Qed.
 
-Inductive min_complete : constr -> ctx -> Prop :=
-| min_complete_nil : min_complete ⊤ nil
-| min_complete_grow : forall x T T' C G,
-    T ⩭ T' ->
-    min_complete C G ->
-    min_complete (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ T) (G & x ~ T').
-
-Hint Constructors min_complete.
-
-Lemma min_complete_exists : forall G,
-    exists C, min_complete C G.
-Proof.
-  introv. dependent induction G; eauto. destruct a as [x T].
-  destruct (iso_ctyp_exists T) as [T' HT].
-  destruct IHG as [C IH].
-  exists (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ T').
-  replace ((x, T) :: G) with (G & x ~ T). eauto.
-  rew_env_defs. rewrite -> app_cons_l. rewrite -> app_nil_l.
-  auto.
-Qed.
-
-Inductive compatible : constr -> ctx -> Prop :=
-| partly_compatible_true : forall G, compatible ⊤ G
-| partly_compatible_grow : forall x T T' C G,
-    T ⩭ T' ->
-    binds x T' G ->
-    compatible C G ->
-    compatible (C ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ T) G.
-
-Inductive subconstr : constr -> constr -> Prop :=
-| subconstr_empty : subconstr ⊤ ⊤
-| subconstr_grow_one : forall C C' F,
-    subconstr C C' ->
-    subconstr C (C' ⋏ F)
-| subconstr_grow_both : forall C C' F,
-    subconstr C C' ->
-    subconstr (C' ⋏ F) (C' ⋏ F)
-.
-Lemma min_complete_ent_bound : forall rG G x T T',
-    min_complete rG G ->
-    T ⩭ T' ->
-    binds x T' G ->
-    rG ⊩ ctrm_cvar (cvar_x (avar_f x)) ⦂ T.
-Proof.
-  introv Hr Hiso Hb. dependent induction Hr.
-  - rewrite <- empty_def in Hb. destruct (binds_empty_inv Hb).
-  - specialize (IHHr Hiso). pose proof (binds_push_inv Hb). destruct_all.
-    -- subst. pose proof (iso_ctyp_unique H Hiso) as Heq. subst.
-       apply ent_and_right.
-    -- specialize (IHHr H1). eapply ent_trans. eapply ent_and_left. assumption.
-Qed.
-
 Lemma ent_and_combine : forall C D1 D2,
     C ⊩ D1 ->
     C ⊩ D2 ->
@@ -153,7 +102,7 @@ Proof.
   - eapply csubtyp_inst; eauto 1. eapply ent_trans.
     eapply ent_and_intro. apply ent_tautology. assumption.
   - specialize (IHHc HT HU). eapply csubtyp_intro. exact H.
-    exact H0. apply IHHc. unfold constr_entail. introv Hi Hsat.
+    exact H0. apply IHHc. unfold constr_entail. introv Hi Hok Hsat.
     apply HTU; auto. inversion Hsat; subst. inversion H3; subst.
     eauto.
 Qed.
@@ -252,7 +201,7 @@ Proof.
       apply* ent_imply_subtyp.
       apply (subtyp_imply_ent Hr' HT HU) in IHHTU.
       apply (subtyp_imply_ent Hr' Hiso H) in Ht.
-      unfold constr_entail. introv Hi Hsat.
+      unfold constr_entail. introv Hi Hok Hsat.
       apply* IHHTU. inv_sat. apply* sat_and.
       inv_sat. apply* sat_and. apply* ent_typ_sub.
     - eauto.

@@ -15,6 +15,7 @@ Require Import ConstrBinding ConstrEntailment ConstrWeakening.
 Require Import ConstrSubtypingLaws EntailmentLaws.
 Require Import StrengtheningConstr.
 Require Import ConstrSatisfy.
+Require Import MinimalComplete.
 
 Ltac constr_fresh_constructor :=
   match goal with
@@ -71,9 +72,10 @@ Proof.
     eapply strengthen_constr_general_subtyping. apply ent_and_assoc.
     apply IHHS2.
     eapply strengthen_constr_general_subtyping; try apply HTU.
-    introe. inv_sat. inversion H3; subst. inversion H8; subst.
-    clear H3 H8. apply sat_and. constructor*.
+    introv H0 Hok1 Hsat1. inv_sat. inversion H2; subst. inversion H8; subst.
+    clear H2 H8. apply sat_and. constructor*.
     eapply ent_ty_and_intro. apply Ht. apply Hu. apply Hiso. assumption.
+    assumption.
     constructor*.
   - specialize (IHHS _ _ Hok _ JMeq_refl eq_refl).
     destruct (iso_ctyp_exists T) as [t Ht].
@@ -91,15 +93,15 @@ Proof.
     eapply ent_trans.
       eapply ent_and_intro.
     assert (He1: ((C1 ⋏ C2) ⋏ ctrm_cvar (cvar_x (avar_f x)) ⦂ t) ⋏ rG ⊩ t <⦂ S'). {
-      intros tm vm G0 HG Hsat. inversions Hsat.
+      intros tm vm G0 HG Hok1 Hsat. inversions Hsat.
       inversions H2. inversions H3. apply Hsub; auto.
     }
     exact He1.
     eapply ent_trans; try exact Hsub2.
-    intros tm vm G0 Hi Hsat.
+    intros tm vm G0 Hi Hok1 Hsat.
     inversions Hsat. inversions H2. inversions H3.
     apply* sat_and. apply* sat_and.
-    eapply ent_ty_var_sub. exact Ht. exact Hiso. assumption.
+    eapply ent_ty_var_sub. exact Ht. exact Hiso. assumption. assumption.
     apply* sat_and.
 Qed.
 

@@ -34,7 +34,7 @@ Reserved Notation "es '⊢vds' x '⪯' y" (at level 40, x at level 59, y at leve
 Inductive map_cvar : vctx -> cvar -> avar -> Prop :=
 | map_cvar_f : forall vm x y,
     binds x y vm ->
-    map_cvar vm (cvar_f x) (avar_f x)
+    map_cvar vm (cvar_f x) (avar_f y)
 | map_cvar_x : forall vm x,
     map_cvar vm (cvar_x x) x
 .
@@ -148,7 +148,8 @@ Proof.
     -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
     -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
     -- destruct c.
-       + inversion H4; inversion H10; subst. f_equal.
+       + inversion H4; inversion H10; subst.
+         lets Heqy: (binds_functional H1 H6). subst. f_equal.
        + inversion H4; inversion H10; subst.
        + inversion H4; inversion H10; subst. trivial.
     -- apply~ IHT.

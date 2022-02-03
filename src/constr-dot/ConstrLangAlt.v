@@ -17,8 +17,10 @@ Require Import Definitions RecordAndInertTypes Decompose.
     Variables can either be free or bound.  *)
 Inductive cvar : Set :=
   | cvar_f : var -> cvar
-  | cvar_b : nat -> cvar
-  | cvar_x : avar -> cvar.
+  (** Variables bound by DOT language. *)
+  | cvar_b_l : nat -> cvar
+  (** Variables bound by constraint language. *)
+  | cvar_b_c : nat -> cvar.
 
 Inductive tvar : Set :=
   | tvar_f : var -> tvar
@@ -172,8 +174,8 @@ with open_rec_cdec_typ (k : nat) (u : var) (D : cdec) : cdec :=
 Definition open_rec_cvar (k : nat) (u : var) (v : cvar) : cvar :=
   match v with
   | cvar_f x => cvar_f x
-  | cvar_x x => cvar_x x
-  | cvar_b i => If k = i then cvar_f u else cvar_b i
+  | cvar_b_c i => If k = i then cvar_f u else cvar_b_c i
+  | cvar_b_l i => cvar_b_l i
   end.
 
 Fixpoint open_rec_ctyp_var (k : nat) (u : var) (T : ctyp) : ctyp :=
@@ -275,6 +277,36 @@ Definition open_constr_var (u : var) (C : constr) : constr := open_rec_constr_va
 Notation "C '^^t' u" := (open_constr_typ u C) (at level 30).
 Notation "C '^^v' u" := (open_constr_var u C) (at level 30).
 
+(** ** Local closure *)
+
+Inductive ctype : ctyp -> Prop :=
+  | ctype_top  : ctype ctyp_top
+  | ctype_bot  : ctype ctyp_bot
+  | ctype_tvar : forall x, ctype (ctyp_tvar (tvar_f x))
+  | ctype_rcd  : forall D, cdecl D -> ctype (ctyp_rcd D)
+  | ctype_and  : forall T U,
+      ctype T ->
+      ctype U ->
+      ctype (ctyp_and T U)
+  | ctype_sel  : forall x T,
+      ctype (ctyp_sel (cvar_f x) T)
+  | ctype_bnd  : forall L T,
+      (forall x, x \notin L -> ctype (open_ctyp_var x T)) ->
+      ctype (ctyp_bnd T)
+  | ctype_all  : forall L T U,
+      ctype T ->
+      (forall x, x \notin L -> ctype (open_ctyp_var x U)) ->
+      ctype (ctyp_all T U)
+with cdecl : cdec -> Prop :=
+  | cdecl_typ : forall A T U,
+      ctype T ->
+      ctype U ->
+      cdecl (cdec_typ A T U)
+  | cdecl_trm : forall a T,
+      ctype T ->
+      cdecl (cdec_trm a T)
+.
+
 (** ** Free variables *)
 
 (** *** Functions for caculuating free type variables *)
@@ -307,6 +339,12 @@ with ftv_cdec (D : cdec) : fset var :=
 
 Reserved Notation "S ⩭ T" (at level 29).
 
+Inductive iso_cvar_avar : cvar -> avar -> Prop :=
+  | iso_cvar_f : forall x,
+      iso_cvar_avar (cvar_f x) (avar_f x)
+  | iso_cvar_b_l : forall i,
+      iso_cvar_avar (cvar_b_l i) (avar_b i).
+
 Inductive iso_ctyp_typ : ctyp -> typ -> Prop :=
 | iso_ctyp_top : ctyp_top ⩭ typ_top
 | iso_ctyp_bot : ctyp_bot ⩭ typ_bot
@@ -317,8 +355,9 @@ Inductive iso_ctyp_typ : ctyp -> typ -> Prop :=
     T ⩭ T' ->
     U ⩭ U' ->
     ctyp_and T U ⩭ typ_and T' U'
-| iso_ctyp_sel : forall x A,
-    ctyp_sel (cvar_x x) A ⩭ typ_sel x A
+| iso_ctyp_sel : forall x x' A,
+    iso_cvar_avar x x' ->
+    ctyp_sel x A ⩭ typ_sel x' A
 | iso_ctyp_bnd : forall T T',
     T ⩭ T' ->
     ctyp_bnd T ⩭ typ_bnd T'
@@ -337,7 +376,14 @@ with iso_cdec_dec : cdec -> dec -> Prop :=
     iso_cdec_dec (cdec_trm a T) (dec_trm a T')
 .
 
-Hint Constructors iso_ctyp_typ iso_cdec_dec.
+Hint Constructors iso_cvar_avar iso_ctyp_typ iso_cdec_dec.
+
+Theorem iso_cvar_exists : forall a, exists c, iso_cvar_avar c a.
+Proof.
+  destruct a.
+  - exists (cvar_b_l n). eauto.
+  - exists (cvar_f v). eauto.
+Qed.
 
 Theorem iso_ctyp_exists : forall T', exists T, T ⩭ T'
 with iso_cdec_exists : forall D', exists D, iso_cdec_dec D D'.
@@ -351,7 +397,8 @@ Proof.
     -- destruct IHT'1 as [t1 H1].
        destruct IHT'2 as [t2 H2].
        exists (ctyp_and t1 t2). eauto.
-    -- exists (ctyp_sel (cvar_x a) t). eauto.
+    -- destruct (iso_cvar_exists a).
+       exists (ctyp_sel x t). eauto.
     -- destruct IHT' as [t' H]. exists (ctyp_bnd t'). eauto.
     -- destruct IHT'1 as [t1 H1].
        destruct IHT'2 as [t2 H2].
@@ -362,6 +409,15 @@ Proof.
        exists (cdec_typ t T0 T1). eauto.
     -- destruct (iso_ctyp_exists t0) as [ T0 H0 ].
        exists (cdec_trm t T0). eauto.
+Qed.
+
+Lemma iso_cvar_unique : forall a c1 c2,
+    iso_cvar_avar c1 a ->
+    iso_cvar_avar c2 a ->
+    c1 = c2.
+Proof.
+  introv H1 H2.
+  inversion H1; inversion H2; subst; try inversion H4; eauto.
 Qed.
 
 Lemma iso_ctyp_unique : forall T T1 T2,
@@ -377,6 +433,7 @@ Proof.
   - dependent induction T; inversion Hiso1; inversion Hiso2; trivial; subst.
     -- f_equal. apply* iso_cdec_unique.
     -- f_equal. apply* IHT1. apply* IHT2.
+    -- lets Heq: (iso_cvar_unique H1 H5). subst. trivial.
     -- f_equal. apply* IHT.
     -- f_equal. apply* IHT1. apply* IHT2.
   - dependent induction D; inversion Hiso1; inversion Hiso2; subst; f_equal; apply* iso_ctyp_unique.
@@ -384,9 +441,9 @@ Qed.
 
 Definition fv_cvar (x: cvar) : vars :=
   match x with
-  | cvar_f x => \{}
-  | cvar_b i => \{}
-  | cvar_x x => fv_avar x
+  | cvar_f x => \{x}
+  | cvar_b_l i => \{}
+  | cvar_b_c i => \{}
   end.
 
 Fixpoint fv_ctyp (T: ctyp) : vars :=

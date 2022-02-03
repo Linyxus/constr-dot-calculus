@@ -32,11 +32,12 @@ Reserved Notation "es '⊢vds' x '⪯' y" (at level 40, x at level 59, y at leve
 
 (** Map a constraint variable to concrete variable. *)
 Inductive map_cvar : vctx -> cvar -> avar -> Prop :=
-| map_cvar_f : forall vm x y,
+| map_cvar_f_in : forall vm x y,
     binds x y vm ->
     map_cvar vm (cvar_f x) (avar_f y)
-| map_cvar_x : forall vm x,
-    map_cvar vm (cvar_x x) x
+| map_cvar_f_notin : forall vm x,
+    x # vm ->
+    map_cvar vm (cvar_f x) (avar_f x)
 .
 
 (** Map a type containing type variables to a concrete type. *)
@@ -132,6 +133,18 @@ Combined Scheme map_ctrm_mutind from map_ctrm_mut, map_cval_mut, map_cdef_mut, m
 
 (** *** Properties of mapping *)
 
+Lemma map_cvar_unique_avar : forall vm c a1 a2,
+    map_cvar vm c a1 ->
+    map_cvar vm c a2 ->
+    a1 = a2.
+Proof.
+  introv Ha1 Ha2.
+  inversion Ha1; inversion Ha2; subst; inversion H5; subst; eauto.
+  - lets Heq: (binds_functional H H3). subst. trivial.
+  - apply get_none in H3. rewrite H in H3. inversion H3.
+  - apply get_none in H. rewrite H3 in H. inversion H.
+Qed.
+
 Lemma map_ctyp_unique_typ : forall tm vm T T1 T2,
     (tm, vm) ⊢t T ⪯ T1 ->
     (tm, vm) ⊢t T ⪯ T2 ->
@@ -148,10 +161,9 @@ Proof.
     -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
     -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
     -- destruct c.
+       + lets Heqy: (map_cvar_unique_avar H4 H10). eauto.
        + inversion H4; inversion H10; subst.
-         lets Heqy: (binds_functional H1 H6). subst. f_equal.
-       + inversion H4; inversion H10; subst.
-       + inversion H4; inversion H10; subst. trivial.
+       + lets Heqy: (map_cvar_unique_avar H4 H10). eauto.
     -- apply~ IHT.
     -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
     -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
@@ -196,44 +208,44 @@ Proof.
        simpl in Hn; constructor; apply* strengthen_map_ctyp.
 Qed.
 
-Lemma map_iso_ctyp : forall tm vm T T',
-    T ⩭ T' ->
-    (tm, vm) ⊢t T ⪯ T'
-with map_iso_cdec : forall tm vm D D',
-    iso_cdec_dec D D' ->
-    (tm, vm) ⊢d D ⪯ D'.
-Proof.
-  all: introv Hc.
-  - dependent induction Hc; try constructor; try apply IHHc1; try apply IHHc2;
-      try apply IHHc.
-    -- apply* map_iso_cdec.
-    -- constructor.
-  - dependent induction Hc; try constructor; try apply IHHc;
-      try apply* map_iso_ctyp.
-Qed.
+(* Lemma map_iso_ctyp : forall tm vm T T', *)
+(*     T ⩭ T' -> *)
+(*     (tm, vm) ⊢t T ⪯ T' *)
+(* with map_iso_cdec : forall tm vm D D', *)
+(*     iso_cdec_dec D D' -> *)
+(*     (tm, vm) ⊢d D ⪯ D'. *)
+(* Proof. *)
+(*   all: introv Hc. *)
+(*   - dependent induction Hc; try constructor; try apply IHHc1; try apply IHHc2; *)
+(*       try apply IHHc. *)
+(*     -- apply* map_iso_cdec. *)
+(*     -- constructor. *)
+(*   - dependent induction Hc; try constructor; try apply IHHc; *)
+(*       try apply* map_iso_ctyp. *)
+(* Qed. *)
 
-Lemma map_iso_ctyp_eq : forall tm vm T T1 T2,
-    T ⩭ T1 ->
-    (tm, vm) ⊢t T ⪯ T2 ->
-    T1 = T2
-with map_iso_cdec_eq : forall tm vm D D1 D2,
-    iso_cdec_dec D D1 ->
-    (tm, vm) ⊢d D ⪯ D2 ->
-    D1 = D2.
-Proof.
-  all: introv Hc Hm.
-  - gen T2. dependent induction Hc; introv Hm.
-    -- inversion Hm; subst. reflexivity.
-    -- inversion Hm; subst. reflexivity.
-    -- inversion Hm; subst. f_equal. apply* map_iso_cdec_eq.
-    -- inversion Hm; subst. f_equal; try apply* IHHc1. apply* IHHc2.
-    -- inversion Hm; subst. f_equal. inversion H4; subst. reflexivity.
-    -- inversion Hm; subst. f_equal. apply* IHHc.
-    -- inversion Hm; subst. f_equal. apply* IHHc1. apply* IHHc2.
-  - gen D2. dependent induction Hc; introv Hm.
-    -- inversion Hm; subst. f_equal; apply* map_iso_ctyp_eq.
-    -- inversion Hm; subst. f_equal. apply* map_iso_ctyp_eq.
-Qed.
+(* Lemma map_iso_ctyp_eq : forall tm vm T T1 T2, *)
+(*     T ⩭ T1 -> *)
+(*     (tm, vm) ⊢t T ⪯ T2 -> *)
+(*     T1 = T2 *)
+(* with map_iso_cdec_eq : forall tm vm D D1 D2, *)
+(*     iso_cdec_dec D D1 -> *)
+(*     (tm, vm) ⊢d D ⪯ D2 -> *)
+(*     D1 = D2. *)
+(* Proof. *)
+(*   all: introv Hc Hm. *)
+(*   - gen T2. dependent induction Hc; introv Hm. *)
+(*     -- inversion Hm; subst. reflexivity. *)
+(*     -- inversion Hm; subst. reflexivity. *)
+(*     -- inversion Hm; subst. f_equal. apply* map_iso_cdec_eq. *)
+(*     -- inversion Hm; subst. f_equal; try apply* IHHc1. apply* IHHc2. *)
+(*     -- inversion Hm; subst. f_equal. inversion H4; subst. reflexivity. *)
+(*     -- inversion Hm; subst. f_equal. apply* IHHc. *)
+(*     -- inversion Hm; subst. f_equal. apply* IHHc1. apply* IHHc2. *)
+(*   - gen D2. dependent induction Hc; introv Hm. *)
+(*     -- inversion Hm; subst. f_equal; apply* map_iso_ctyp_eq. *)
+(*     -- inversion Hm; subst. f_equal. apply* map_iso_ctyp_eq. *)
+(* Qed. *)
 
 Inductive satisfy_constr : (tctx * vctx * ctx) -> constr -> Prop :=
 

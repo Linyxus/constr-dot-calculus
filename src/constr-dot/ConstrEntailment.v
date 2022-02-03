@@ -17,14 +17,13 @@ Require Import Definitions RecordAndInertTypes Decompose ConstrLangAlt ConstrInt
 Definition constr_entail (C1 C2 : constr) :=
   forall tm vm G,
     inert G ->
-    ok G ->
     (tm, vm, G) ⊧ C1 -> (tm, vm, G) ⊧ C2.
 
 Notation "C '⊩' D" := (constr_entail C D) (at level 50).
 
 (** ** Tactics *)
 
-Ltac introe := introv H0 Hok H.
+Ltac introe := introv H0 H.
 
 Ltac inv_sat :=
   match goal with
@@ -201,18 +200,14 @@ Proof.
   apply sat_sub with (S' := S'0) (T' := T'); try apply* strengthen_map_ctyp. auto.
 Qed.
 
-Lemma ent_ty_var_sub : forall x S T s t,
-    s ⩭ S ->
-    t ⩭ T ->
-    ctrm_cvar (cvar_x (avar_f x)) ⦂ s ⋏ s <⦂ t ⊩ ctrm_cvar (cvar_x (avar_f x)) ⦂ t.
+Lemma ent_ty_var_sub : forall x s t,
+    ctrm_cvar (cvar_f x) ⦂ s ⋏ s <⦂ t ⊩ ctrm_cvar (cvar_f x) ⦂ t.
 Proof.
-  introv Hs Ht. introe.
-  inv_sat. inv_sat. inv_sat.
-  inversion H6; subst. inversions H4.
-  lets Hs1: (map_iso_ctyp tm vm Hs).
-  lets Ht1: (map_iso_ctyp tm vm Ht).
-  lets Heq1: (map_ctyp_unique_typ H5 Hs1).
-  lets Heq2: (map_ctyp_unique_typ H10 Hs1). subst.
-  lets Heq: (map_ctyp_unique_typ H8 Ht1). subst.
-  apply* sat_typ.
+  introv. introe.
+  inversions H.
+  inversions H3.
+  inversions H7.
+  lets Heqs: (map_ctyp_unique_typ H8 H4). subst. clear H8.
+  econstructor. exact H5. exact H10.
+  eauto.
 Qed.

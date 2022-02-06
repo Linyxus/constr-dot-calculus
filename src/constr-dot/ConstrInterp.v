@@ -12,6 +12,7 @@ Require Import String.
 Require Import Coq.Program.Equality.
 
 Require Import Definitions RecordAndInertTypes Decompose ConstrLangAlt.
+Require Import PartialReplacement.
 
 (** * Constraint Interpretation *)
 
@@ -130,6 +131,9 @@ with   map_cval_mut     := Induction for map_cval Sort Prop
 with   map_cdef_mut     := Induction for map_cdef Sort Prop
 with   map_cdefs_mut    := Induction for map_cdefs Sort Prop.
 Combined Scheme map_ctrm_mutind from map_ctrm_mut, map_cval_mut, map_cdef_mut, map_cdefs_mut.
+
+Hint Constructors map_cvar map_ctyp map_cdec
+     map_ctrm map_cval map_cdef map_cdefs.
 
 (** *** Properties of mapping *)
 
@@ -293,3 +297,94 @@ Definition constr_satisfiable (C : constr) (G : ctx) :=
   exists tm vm, (tm, vm, G) ⊧ C.
 
 Notation "G '⊨' C" := (constr_satisfiable C G) (at level 40).
+
+(** * Substitution Lemma for Constraint Interpretation *)
+
+(** ** Properties of partial replacement and interpretation *)
+
+Lemma map_cvar_prepl : forall vm c c' a x y z,
+    x \notin fv_cvar c ->
+    map_cvar vm c a ->
+    map_cvar vm (cvar_f y) (avar_f z) ->
+    prepl_cvar y x c c' ->
+    map_cvar (vm & x ~ z) c' a.
+Proof.
+  introv Hx Hm Hy Hp.
+  inversions Hm; inversions Hp; eauto.
+  - simpl in Hx. rewrite notin_singleton in Hx.
+    apply map_cvar_f_in. eapply binds_push_neq; eauto.
+  - simpl in Hx. rewrite notin_singleton in Hx.
+    inversions Hy.
+    -- apply map_cvar_f_in.
+       lets Heq: (binds_functional H H3).
+       subst. eauto.
+    -- apply get_some_inv in H. unfold notin in H3.
+       apply H3 in H. destruct H.
+  - simpl in Hx. rewrite notin_singleton in Hx.
+    eauto.
+  - simpl in Hx. rewrite notin_singleton in Hx.
+    inversions Hy.
+    -- apply get_some_inv in H3. contradiction.
+    -- eauto.
+Qed.
+
+Lemma map_ctyp_prepl_rules :
+  (forall e t T, e ⊢t t ⪯ T ->
+    forall tm vm x y z t',
+      e = (tm, vm) ->
+      map_cvar vm (cvar_f y) (avar_f z) ->
+      prepl_ctyp y x t t' ->
+      x \notin fv_ctyp t ->
+      (tm, vm & x ~ z) ⊢t t' ⪯ T) /\
+  (forall e d D, e ⊢d d ⪯ D ->
+    forall tm vm x y z d',
+      e = (tm, vm) ->
+      map_cvar vm (cvar_f y) (avar_f z) ->
+      prepl_cdec y x d d' ->
+      x \notin fv_cdec d ->
+      (tm, vm & x ~ z) ⊢d d' ⪯ D).
+Proof.
+  apply map_ctyp_mutind; intros; subst; eauto;
+    try solve [inversions H0; eauto].
+  - inversions H. inversions H1. eauto.
+  - inversions H. inversions H1. eauto.
+  - inversions H1. inversions H. eauto.
+  - inversions H2. inversions H0.
+    eauto.
+  - inversions H1. inversions H3. simpl in H4.
+    eauto.
+  - inversions H. inversion H1. subst. constructor.
+    simpl in H2.
+    eapply map_cvar_prepl. exact H2.
+    exact m. exact H0. exact H7.
+  - inversions H0. inversion H2; subst. simpl in H3.
+    eauto.
+  - inversions H1. inversions H3.
+  - inversions H1. inversions H3. simpl in H4.
+    eauto.
+  - inversions H0. inversions H2. simpl in H3.
+    eauto.
+Qed.
+
+Check map_ctrm_mutind.
+
+Lemma prepl_constr_satisfy : forall x y tm vm G C C',
+    (tm, vm, G) ⊧ C ->
+    prepl_constr y x C C' ->
+    x \notin fv_constr C ->
+    (tm, vm & x ~ y, G) ⊧ C'.
+Proof.
+  introv HC Hpr Hx. gen C'.
+  dependent induction HC; introv Hpr.
+  - inversions Hpr. eauto.
+  - inversions Hpr. simpl in Hx. constructor; eauto.
+  - inversions Hpr. simpl in Hx. apply sat_or1. eauto.
+  - inversions Hpr. simpl in Hx. apply sat_or2. eauto.
+  - inversions Hpr. simpl in Hx. apply sat_exists_typ with (L:=L) (T:=T).
+    introv Hx0.
+    apply~ H0; eauto.
+    lets Heq: (open_constr_typ_fv C 0 x0). unfold open_constr_typ.
+    rewrite <- Heq. eauto.
+    apply~ open_constr_typ_prepl.
+  - admit.
+  - inversions Hpr. econstructor.

@@ -517,3 +517,45 @@ Ltac constr_gather_vars :=
 Ltac constr_pick_fresh x :=
   let L := constr_gather_vars in (pick_fresh_gen L x).
 
+(** * Properties of opening *)
+
+Lemma open_ctyp_typ_fv_rules :
+  (forall T k u, fv_ctyp T = fv_ctyp (open_rec_ctyp_typ k u T)) /\
+  (forall D k u, fv_cdec D = fv_cdec (open_rec_cdec_typ k u D)).
+Proof.
+  apply ctyp_mutind;
+    intros; eauto;
+    simpl; try solve [f_equal; eauto];
+    eauto.
+Qed.
+
+Lemma open_ctyp_typ_fv : forall T k u,
+    fv_ctyp T = fv_ctyp (open_rec_ctyp_typ k u T).
+Proof.
+  exact (proj21 open_ctyp_typ_fv_rules).
+Qed.
+
+Lemma open_ctrm_typ_fv_rules :
+  (forall t k u, fv_ctrm t = fv_ctrm (open_rec_ctrm_typ k u t)) /\
+  (forall v k u, fv_cval v = fv_cval (open_rec_cval_typ k u v)) /\
+  (forall d k u, fv_cdef d = fv_cdef (open_rec_cdef_typ k u d)) /\
+  (forall ds k u, fv_cdefs ds = fv_cdefs (open_rec_cdefs_typ k u ds)).
+Proof.
+  apply ctrm_mutind; intros; simpl in *; eauto;
+    try solve [f_equal; eauto using open_ctyp_typ_fv].
+  apply~ open_ctyp_typ_fv.
+Qed.
+
+Lemma open_ctrm_typ_fv : forall t k u,
+    fv_ctrm t = fv_ctrm (open_rec_ctrm_typ k u t).
+Proof.
+  exact (proj41 open_ctrm_typ_fv_rules).
+Qed.
+
+Lemma open_constr_typ_fv : forall C k u,
+    fv_constr C = fv_constr (open_rec_constr_typ k u C).
+Proof.
+  introv.
+  dependent induction C; simpl in *; eauto;
+    try solve [f_equal; eauto using open_ctyp_typ_fv, open_ctrm_typ_fv].
+Qed.

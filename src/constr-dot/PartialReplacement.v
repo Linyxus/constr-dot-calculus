@@ -244,3 +244,44 @@ Proof.
   dependent induction Hpr; simpl in *; eauto using open_ctyp_typ_prepl, open_ctrm_typ_prepl.
 Qed.
 
+Lemma open_cvar_prepl : forall y x c c' k u,
+    prepl_cvar y x c c' ->
+    prepl_cvar y x (open_rec_cvar k u c) (open_rec_cvar k u c').
+Proof.
+  introv Hp. inversions Hp; eauto.
+  simpl. eauto.
+Qed.
+
+Lemma open_ctyp_var_prepl_rules :
+  (forall y x T T', prepl_ctyp y x T T' ->
+    forall k u, prepl_ctyp y x (open_rec_ctyp_var k u T) (open_rec_ctyp_var k u T')) /\
+  (forall y x D D', prepl_cdec y x D D' ->
+    forall k u, prepl_cdec y x (open_rec_cdec_var k u D) (open_rec_cdec_var k u D')).
+Proof.
+  apply prepl_ctyp_mutind; intros; simpl in *; eauto using open_cvar_prepl.
+Qed.
+
+Definition open_ctyp_var_prepl := proj21 open_ctyp_var_prepl_rules.
+
+Lemma open_ctrm_var_prepl_rules :
+  (forall y x t t', prepl_ctrm y x t t' ->
+    forall k u, prepl_ctrm y x (open_rec_ctrm_var k u t) (open_rec_ctrm_var k u t')) /\
+  (forall y x v v', prepl_cval y x v v' ->
+    forall k u, prepl_cval y x (open_rec_cval_var k u v) (open_rec_cval_var k u v')) /\
+  (forall y x d d', prepl_cdef y x d d' ->
+    forall k u, prepl_cdef y x (open_rec_cdef_var k u d) (open_rec_cdef_var k u d')) /\
+  (forall y x ds ds', prepl_cdefs y x ds ds' ->
+    forall k u, prepl_cdefs y x (open_rec_cdefs_var k u ds) (open_rec_cdefs_var k u ds')).
+Proof.
+  apply prepl_ctrm_mutind; intros; simpl in *; eauto using open_ctyp_var_prepl, open_cvar_prepl.
+Qed.
+
+Definition open_ctrm_var_prepl := proj41 open_ctrm_var_prepl_rules.
+
+Lemma open_constr_var_prepl :
+  forall y x C C', prepl_constr y x C C' ->
+    forall k u, prepl_constr y x (open_rec_constr_var k u C) (open_rec_constr_var k u C').
+Proof.
+  introv Hpr. introv.
+  dependent induction Hpr; simpl in *; eauto using open_ctyp_var_prepl, open_ctrm_var_prepl.
+Qed.

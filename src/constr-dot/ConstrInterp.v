@@ -300,6 +300,122 @@ Notation "G '⊨' C" := (constr_satisfiable C G) (at level 40).
 
 (** * Substitution Lemma for Constraint Interpretation *)
 
+Lemma ok_concat_swap : forall A (G1 : env A) G2,
+    ok (G1 & G2) -> ok (G2 & G1).
+Proof.
+  introv Hok.
+  induction G1 using env_ind.
+  - rewrite concat_empty_l in *. now rewrite concat_empty_r.
+  - apply ok_remove in Hok as Hok12. specialize (IHG1 Hok12).
+    rewrite concat_assoc. constructor; eauto.
+    apply ok_middle_inv in Hok. destruct Hok as [Hn1 Hn2].
+    eauto.
+Qed.
+
+Lemma binds_concat_swap : forall A G1 G2 x (T : A),
+    ok (G1 & G2) ->
+    binds x T (G1 & G2) ->
+    binds x T (G2 & G1).
+Proof using.
+  induction G1 using env_ind; introv Hok HB.
+  - rewrite concat_empty_l in *. now rewrite concat_empty_r.
+  - apply binds_middle_inv in HB. destruct_all.
+    + rewrite concat_assoc. rewrite <- concat_assoc.
+      specialize (IHG1 G2 x0 T).
+      apply ok_remove in Hok as Hok12. specialize (IHG1 Hok12).
+      rewrite concat_assoc. apply* binds_push_neq.
+      apply ok_middle_inv_r in Hok. apply get_some_inv in H.
+      introv Heq. now subst.
+    + subst. rewrite concat_assoc. apply binds_push_eq.
+    + rewrite concat_assoc. apply binds_push_neq; eauto.
+Qed.
+
+Lemma map_cvar_vm_swap : forall vm1 vm2 vm3 vm4 c x,
+    ok (vm2 & vm3) ->
+    map_cvar (vm1 & vm2 & vm3 & vm4) c x ->
+    map_cvar (vm1 & vm3 & vm2 & vm4) c x.
+Proof.
+  introv Hok Hm. inversion Hm.
+  - subst. rewrite <- (concat_assoc vm1 vm2 vm3) in H.
+    apply binds_concat_inv in H. destruct H.
+    + constructor. eauto.
+    + destruct H as [Hx H].
+      apply binds_concat_inv in H; destruct H.
+      * constructor. rewrite <- (concat_assoc vm1 vm3 vm2).
+        apply binds_concat_left; eauto.
+        apply binds_concat_swap in H; eauto using ok_concat_swap.
+      * destruct H as [Hx0 H]. rewrite dom_concat in Hx0.
+        constructor. repeat apply binds_concat_left; eauto.
+  - apply map_cvar_f_notin. eauto.
+Qed.
+
+Lemma map_ctyp_vm_swap_rules :
+  (forall e t T, e ⊢t t ⪯ T ->
+    forall tm vm1 vm2 vm3 vm4,
+      e = (tm, vm1 & vm2 & vm3 & vm4) ->
+      ok (vm2 & vm3) ->
+      (tm, vm1 & vm3 & vm2 & vm4) ⊢t t ⪯ T) /\
+  (forall e d D, e ⊢d d ⪯ D ->
+    forall tm vm1 vm2 vm3 vm4,
+      e = (tm, vm1 & vm2 & vm3 & vm4) ->
+      ok (vm2 & vm3) ->
+      (tm, vm1 & vm3 & vm2 & vm4) ⊢d d ⪯ D).
+Proof.
+  apply map_ctyp_mutind; intros; subst; eauto;
+    try solve [inversions H0; eauto].
+  - inversions H. eauto.
+  - inversions H. constructor. apply* map_cvar_vm_swap.
+Qed.
+
+Lemma map_ctrm_vm_swap_rules :
+  (forall e ct t, e ⊢v ct ⪯ t ->
+    forall tm vm1 vm2 vm3 vm4,
+      e = (tm, vm1 & vm2 & vm3 & vm4) ->
+      ok (vm2 & vm3) ->
+      (tm, vm1 & vm3 & vm2 & vm4) ⊢v ct ⪯ t) /\
+  (forall e v T, e ⊢vv v ⪯ T ->
+    forall tm vm1 vm2 vm3 vm4,
+      e = (tm, vm1 & vm2 & vm3 & vm4) ->
+      ok (vm2 & vm3) ->
+      (tm, vm1 & vm3 & vm2 & vm4) ⊢vv v ⪯ T) /\
+  (forall e d D, e ⊢vd d ⪯ D ->
+    forall tm vm1 vm2 vm3 vm4,
+      e = (tm, vm1 & vm2 & vm3 & vm4) ->
+      ok (vm2 & vm3) ->
+      (tm, vm1 & vm3 & vm2 & vm4) ⊢vd d ⪯ D) /\
+  (forall e ds T, e ⊢vds ds ⪯ T ->
+    forall tm vm1 vm2 vm3 vm4,
+      e = (tm, vm1 & vm2 & vm3 & vm4) ->
+      ok (vm2 & vm3) ->
+      (tm, vm1 & vm3 & vm2 & vm4) ⊢vds ds ⪯ T).
+Proof.
+  apply map_ctrm_mutind; intros; subst; eauto.
+  - inversions H. constructor. apply* map_cvar_vm_swap.
+  - inversions H0. constructor. apply* map_ctyp_vm_swap_rules.
+    apply* H.
+  - inversions H0. constructor. apply* map_ctyp_vm_swap_rules.
+    apply* H.
+  - inversions H. constructor. apply* map_ctyp_vm_swap_rules.
+Qed.
+
+Lemma satisfy_vm_swap : forall tm vm1 vm2 vm3 vm4 G C,
+    ok (vm2 & vm3) ->
+    (tm, vm1 & vm2 & vm3 & vm4, G) ⊧ C ->
+    (tm, vm1 & vm3 & vm2 & vm4, G) ⊧ C.
+Proof.
+  introv Hneq HC.
+  dependent induction HC; eauto.
+  - apply sat_exists_var with (L:=L) (u:=u). introv Hx.
+    specialize (H0 x Hx G (vm4 & x ~ u) vm3 vm2 Hneq).
+    rewrite <- concat_assoc.
+    apply* H0.
+    rewrite -> concat_assoc. eauto.
+  - apply sat_typ with (t':=t') (T':=T').
+    apply* map_ctrm_vm_swap_rules.
+    apply* map_ctyp_vm_swap_rules. eauto.
+  - apply sat_sub with (S':=S') (T':=T'); eauto; apply* map_ctyp_vm_swap_rules.
+Qed.
+
 (** ** Properties of partial replacement and interpretation *)
 
 Lemma map_cvar_prepl : forall vm c c' a x y z,
@@ -366,15 +482,102 @@ Proof.
     eauto.
 Qed.
 
-Check map_ctrm_mutind.
+Lemma map_ctyp_prepl : forall tm vm x y z t t' T,
+    (tm, vm) ⊢t t ⪯ T ->
+    map_cvar vm (cvar_f y) (avar_f z) ->
+    prepl_ctyp y x t t' ->
+    x \notin fv_ctyp t ->
+    (tm, vm & x ~ z) ⊢t t' ⪯ T.
+Proof.
+  introv m p Hx.
+  lets H: (proj21 map_ctyp_prepl_rules). apply* H.
+Qed.
 
-Lemma prepl_constr_satisfy : forall x y tm vm G C C',
+Lemma map_ctrm_prepl_rules :
+  (forall e ct t, e ⊢v ct ⪯ t ->
+    forall tm vm x y z ct',
+      e = (tm, vm) ->
+      map_cvar vm (cvar_f y) (avar_f z) ->
+      prepl_ctrm y x ct ct' ->
+      x \notin fv_ctrm ct ->
+      (tm, vm & x ~ z) ⊢v ct' ⪯ t) /\
+  (forall e cv v, e ⊢vv cv ⪯ v ->
+    forall tm vm x y z cv',
+      e = (tm, vm) ->
+      map_cvar vm (cvar_f y) (avar_f z) ->
+      prepl_cval y x cv cv' ->
+      x \notin fv_cval cv ->
+      (tm, vm & x ~ z) ⊢vv cv' ⪯ v) /\
+  (forall e cd d, e ⊢vd cd ⪯ d ->
+    forall tm vm x y z cd',
+      e = (tm, vm) ->
+      map_cvar vm (cvar_f y) (avar_f z) ->
+      prepl_cdef y x cd cd' ->
+      x \notin fv_cdef cd ->
+      (tm, vm & x ~ z) ⊢vd cd' ⪯ d) /\
+  (forall e cds ds, e ⊢vds cds ⪯ ds ->
+    forall tm vm x y z cds',
+      e = (tm, vm) ->
+      map_cvar vm (cvar_f y) (avar_f z) ->
+      prepl_cdefs y x cds cds' ->
+      x \notin fv_cdefs cds ->
+      (tm, vm & x ~ z) ⊢vds cds' ⪯ ds).
+Proof.
+  Ltac solver_step1 :=
+    match goal with
+    | H : (_, _) = (_, _) |- _ => inversions H
+    end.
+
+  Ltac solver_step2 :=
+    match goal with
+    | H : prepl_ctrm _ _ _ _ |- _ => inversion H; subst
+    | H : prepl_cval _ _ _ _ |- _ => inversion H; subst
+    | H : prepl_cdef _ _ _ _ |- _ => inversion H; subst
+    | H : prepl_cdefs _ _ _ _ |- _ => inversion H; subst
+    end.
+
+  Ltac solver_step3 :=
+    match goal with
+    | H : _ \notin _ |- _ => simpl in H
+    end.
+
+  Ltac the_solver :=
+    solver_step1; solver_step2; solver_step3;
+    constructor; eauto using map_ctyp_prepl, map_cvar_prepl.
+
+  apply map_ctrm_mutind; intros; subst; eauto; try the_solver.
+Qed.
+
+Lemma map_ctrm_prepl : forall tm vm x y z ct ct' t,
+    (tm, vm) ⊢v ct ⪯ t ->
+    map_cvar vm (cvar_f y) (avar_f z) ->
+    prepl_ctrm y x ct ct' ->
+    x \notin fv_ctrm ct ->
+    (tm, vm & x ~ z) ⊢v ct' ⪯ t.
+Proof.
+  introv m p Hx.
+  lets H: (proj41 map_ctrm_prepl_rules). eauto.
+Qed.
+
+Lemma map_cvar_elim_tail : forall vm x u y z,
+    map_cvar vm (cvar_f y) (avar_f z) ->
+    x <> y ->
+    map_cvar (vm & x ~ u) (cvar_f y) (avar_f z).
+Proof.
+  introv Hm Hneq.
+  inversion Hm.
+  - subst. constructor. apply binds_push_neq; eauto.
+  - subst. apply map_cvar_f_notin. eauto.
+Qed.
+
+Lemma prepl_constr_satisfy : forall x y z tm vm G C C',
     (tm, vm, G) ⊧ C ->
     prepl_constr y x C C' ->
+    map_cvar vm (cvar_f y) (avar_f z) ->
     x \notin fv_constr C ->
-    (tm, vm & x ~ y, G) ⊧ C'.
+    (tm, vm & x ~ z, G) ⊧ C'.
 Proof.
-  introv HC Hpr Hx. gen C'.
+  introv HC Hpr Hm Hx. gen C'.
   dependent induction HC; introv Hpr.
   - inversions Hpr. eauto.
   - inversions Hpr. simpl in Hx. constructor; eauto.
@@ -386,5 +589,37 @@ Proof.
     lets Heq: (open_constr_typ_fv C 0 x0). unfold open_constr_typ.
     rewrite <- Heq. eauto.
     apply~ open_constr_typ_prepl.
-  - admit.
-  - inversions Hpr. econstructor.
+  - inversions Hpr. simpl in Hx. apply sat_exists_var with (L:=L \u \{x} \u \{y}) (u:=u).
+    introv Hx0.
+    assert (HxL: x0 \notin L) by eauto.
+    specialize (H0 x0 HxL).
+    specialize (H0 _ _ _ eq_refl).
+    rewrite <- (concat_empty_r (vm & x ~ z & x0 ~ u)).
+    apply satisfy_vm_swap; eauto.
+    + assert (Hxu: x0 \notin \{x}) by eauto. constructor.
+      rewrite <- concat_empty_l. eauto.
+      rewrite dom_single. eauto.
+    + rewrite concat_empty_r.
+      assert (Hm1: map_cvar (vm & x0 ~ u) (cvar_f y) (avar_f z)). {
+        apply* map_cvar_elim_tail.
+      }
+      specialize (H0 Hm1).
+      assert (Hx1: x \notin fv_constr (C ^^v x0)). {
+        unfold open_constr_var.
+        lets Hfv: (open_constr_var_fv C 0 x0). destruct Hfv as [Hfv | Hfv].
+        - rewrite <- Hfv. eauto.
+        - rewrite <- Hfv. eauto.
+      }
+      specialize (H0 Hx1).
+      apply~ H0.
+      apply~ open_constr_var_prepl.
+  - inversions Hpr. simpl in Hx. econstructor.
+    + eapply map_ctrm_prepl. exact H. exact Hm. exact H6. eauto.
+    + eapply map_ctyp_prepl. exact H0. exact Hm. exact H8. eauto.
+    + eauto.
+  - inversions Hpr. simpl in Hx. econstructor.
+    + eapply map_ctyp_prepl. exact H. exact Hm. exact H6. eauto.
+    + eapply map_ctyp_prepl. exact H0. exact Hm. exact H8. eauto.
+    + eauto.
+Qed.
+

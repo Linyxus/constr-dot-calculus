@@ -559,3 +559,187 @@ Proof.
   dependent induction C; simpl in *; eauto;
     try solve [f_equal; eauto using open_ctyp_typ_fv, open_ctrm_typ_fv].
 Qed.
+
+Lemma open_cvar_fv : forall k u cv,
+    fv_cvar cv = fv_cvar (open_rec_cvar k u cv) \/
+    \{u} = fv_cvar (open_rec_cvar k u cv).
+Proof.
+  introv. unfold open_rec_cvar.
+  destruct cv; simpl.
+  - left. eauto.
+  - left. eauto.
+  - cases_if; eauto.
+Qed.
+
+Lemma open_ctyp_var_fv_rules :
+  (forall T k u, fv_ctyp T = fv_ctyp (open_rec_ctyp_var k u T) \/
+            fv_ctyp T \u \{u} = fv_ctyp (open_rec_ctyp_var k u T)) /\
+  (forall D k u, fv_cdec D = fv_cdec (open_rec_cdec_var k u D) \/
+            fv_cdec D \u \{u} = fv_cdec (open_rec_cdec_var k u D)).
+Proof.
+  apply ctyp_mutind;
+    intros; eauto;
+    simpl; try solve [f_equal; eauto using open_cvar_fv];
+    eauto using open_cvar_fv.
+  - specialize (H k u). specialize (H0 k u).
+    destruct H; destruct H0; rewrite <- H0; rewrite <- H; eauto using union_assoc.
+    + right. rewrite union_comm. rewrite union_comm_assoc. rewrite <- union_assoc. now trivial.
+    + right. rewrite <- union_assoc. rewrite <- union_assoc.
+      replace (\{u} \u fv_ctyp c0 \u \{u}) with (fv_ctyp c0 \u (\{u} \u \{u})).
+      rewrite union_same. now trivial.
+      rewrite union_comm_assoc. now trivial.
+  - destruct c; unfold open_rec_cvar; try cases_if; eauto.
+    simpl. right. rewrite union_empty_l. eauto.
+  - specialize (H k u). specialize (H0 k u).
+    destruct H; destruct H0; rewrite <- H; rewrite <- H0; eauto.
+    + right. rewrite union_assoc. eauto.
+    + right. rewrite <- union_assoc. rewrite (union_comm (fv_ctyp c0) \{u}).
+      rewrite -> union_assoc. now trivial.
+    + right. rewrite (union_comm (fv_ctyp c0) \{u}).
+      rewrite union_assoc. rewrite <- (union_assoc _ \{u} \{u}).
+      rewrite union_same. rewrite <- union_assoc. rewrite <- union_assoc.
+      rewrite (union_comm \{u} _). now reflexivity.
+  - specialize (H k u). specialize (H0 k u).
+    destruct H; destruct H0; rewrite <- H; rewrite <- H0; eauto.
+    + right. now rewrite <- union_assoc.
+    + right. rewrite <- union_assoc. rewrite (union_comm (fv_ctyp c0) \{u}).
+      now rewrite <- union_assoc.
+    + right. rewrite (union_comm (fv_ctyp c0) \{u}).
+      rewrite union_assoc. rewrite <- (union_assoc _ \{u} \{u}).
+      rewrite union_same. rewrite <- union_assoc. rewrite <- union_assoc.
+      now rewrite (union_comm \{u} _).
+Qed.
+
+Lemma open_ctrm_var_fv_rules :
+  (forall t k u, fv_ctrm t = fv_ctrm (open_rec_ctrm_var k u t) \/
+            fv_ctrm t \u \{u} = fv_ctrm (open_rec_ctrm_var k u t)) /\
+  (forall v k u, fv_cval v = fv_cval (open_rec_cval_var k u v) \/
+            fv_cval v \u \{u} = fv_cval (open_rec_cval_var k u v)) /\
+  (forall d k u, fv_cdef d = fv_cdef (open_rec_cdef_var k u d) \/
+            fv_cdef d \u \{u} = fv_cdef (open_rec_cdef_var k u d)) /\
+  (forall ds k u, fv_cdefs ds = fv_cdefs (open_rec_cdefs_var k u ds) \/
+             fv_cdefs ds \u \{u} = fv_cdefs (open_rec_cdefs_var k u ds)).
+Proof.
+  apply ctrm_mutind;
+    intros; eauto;
+    simpl; try solve [f_equal; eauto using open_cvar_fv];
+    eauto using open_cvar_fv.
+  - lets H: (open_cvar_fv k u c). destruct H; rewrite <- H; eauto.
+    destruct c; simpl in *; eauto.
+    right. now rewrite union_empty_l.
+  - lets H: (open_cvar_fv k u c). destruct H; rewrite <- H; eauto.
+    destruct c; simpl in *; eauto.
+    right. now rewrite union_empty_l.
+  - lets H: (open_cvar_fv k u c). destruct H; rewrite <- H; eauto.
+    lets H0: (open_cvar_fv k u c0). destruct H0; rewrite <- H0; eauto.
+    destruct c; destruct c0; simpl in *; eauto;
+      try solve [left; now f_equal];
+      try solve [right; now rewrite union_empty_r].
+    + lets H0: (open_cvar_fv k u c0). destruct H0; rewrite <- H0; eauto.
+      destruct c; destruct c0; simpl in *; eauto;
+        try solve [left; now f_equal];
+        try solve [right; now rewrite union_empty_r].
+      right. rewrite union_empty_l. now rewrite union_comm.
+      right. rewrite union_same. now rewrite union_comm.
+      right. rewrite union_same. now rewrite union_comm.
+
+      destruct c; destruct c0; simpl in *; eauto;
+        try solve [left; now f_equal];
+        try solve [right; now rewrite union_empty_r];
+        try solve [left; rewrite union_same; now rewrite union_empty_r].
+        try solve [left; rewrite union_same; now rewrite union_empty_l].
+        right. repeat rewrite union_same. now rewrite union_empty_l.
+  - specialize (H k u); specialize (H0 k u);
+      destruct H; destruct H0;
+      rewrite <- H; rewrite <- H0; eauto.
+    + right. now rewrite union_assoc.
+    + right. rewrite <- union_assoc. rewrite (union_comm (fv_ctrm c0) \{u}).
+      now rewrite union_assoc.
+    + right. rewrite (union_comm (fv_ctrm c0) \{u}). rewrite <- union_assoc.
+      rewrite <- union_assoc. rewrite (union_assoc \{u} \{u} _).
+      rewrite union_same. now rewrite (union_comm \{u} (fv_ctrm c0)).
+  - specialize (H k u).
+    lets H0: ((proj21 open_ctyp_var_fv_rules) c k u).
+    destruct H; destruct H0;
+      rewrite <- H; rewrite <- H0;
+      simpl in *; eauto.
+    + right. repeat rewrite <- union_assoc.
+      now rewrite (union_comm _ \{u}).
+    + right. repeat rewrite <- union_assoc.
+      now rewrite (union_comm _ \{u}).
+    + right. rewrite (union_comm (fv_cdefs c0) \{u}). rewrite <- union_assoc.
+      rewrite <- union_assoc. rewrite (union_assoc \{u} \{u} _).
+      rewrite union_same. now rewrite (union_comm \{u} (fv_cdefs c0)).
+  - specialize (H k u).
+    lets H0: ((proj21 open_ctyp_var_fv_rules) c k u).
+    destruct H; destruct H0;
+      rewrite <- H; rewrite <- H0;
+      simpl in *; eauto.
+    + right. repeat rewrite <- union_assoc.
+      now rewrite (union_comm _ \{u}).
+    + right. repeat rewrite <- union_assoc.
+      now rewrite (union_comm _ \{u}).
+    + right. rewrite (union_comm (fv_ctrm c0) \{u}). rewrite <- union_assoc.
+      rewrite <- union_assoc. rewrite (union_assoc \{u} \{u} _).
+      rewrite union_same. now rewrite (union_comm \{u} (fv_ctrm c0)).
+  - lets H: ((proj21 open_ctyp_var_fv_rules) c k u).
+    destruct H; rewrite <- H; simpl in *; eauto.
+  - specialize (H k u). specialize (H0 k u).
+    destruct H; destruct H0;
+      rewrite <- H; rewrite <- H0;
+      simpl in *; eauto.
+    + right. repeat rewrite <- union_assoc.
+      now rewrite (union_comm _ \{u}).
+    + right. repeat rewrite <- union_assoc.
+      now rewrite (union_comm _ \{u}).
+    + right. rewrite (union_comm (fv_cdef c0) \{u}). rewrite <- union_assoc.
+      rewrite <- union_assoc. rewrite (union_assoc \{u} \{u} _).
+      rewrite union_same. now rewrite (union_comm \{u} (fv_cdef c0)).
+Qed.
+
+Definition open_ctyp_var_fv := proj21 open_ctyp_var_fv_rules.
+
+Definition open_ctrm_var_fv := proj41 open_ctrm_var_fv_rules.
+
+Lemma open_constr_var_fv : forall C k u,
+    fv_constr C = fv_constr (open_rec_constr_var k u C) \/
+    fv_constr C \u \{u} = fv_constr (open_rec_constr_var k u C).
+Proof.
+  introv.
+  dependent induction C; simpl in *; eauto;
+    try solve [f_equal; eauto using open_ctyp_var_fv, open_ctrm_var_fv];
+    try specialize (IHC1 k u); try specialize (IHC2 k u);
+    try destruct IHC1; try destruct IHC2; try rewrite <- H; try rewrite <- H0;
+    eauto 10 using union_comm, union_assoc, union_comm_assoc;
+    try solve [right; repeat rewrite <- union_assoc; now rewrite (union_comm \{u} _)].
+  - right. rewrite (union_comm (fv_constr C2) \{u}). rewrite <- union_assoc.
+    rewrite <- union_assoc. rewrite (union_assoc \{u} \{u} _).
+    rewrite union_same. now rewrite (union_comm \{u} (fv_constr C2)).
+  - right. rewrite (union_comm (fv_constr C2) \{u}). rewrite <- union_assoc.
+    rewrite <- union_assoc. rewrite (union_assoc \{u} \{u} _).
+    rewrite union_same. now rewrite (union_comm \{u} (fv_constr C2)).
+  - lets H: (open_ctyp_var_fv c k u).
+    lets H0: (open_ctyp_var_fv c0 k u).
+    destruct H; destruct H0;
+      rewrite <- H; rewrite <- H0;
+      simpl in *; eauto.
+    + right. repeat rewrite <- union_assoc.
+      now rewrite (union_comm _ \{u}).
+    + right. repeat rewrite <- union_assoc.
+      now rewrite (union_comm _ \{u}).
+    + right. rewrite (union_comm (fv_ctyp c0) \{u}). rewrite <- union_assoc.
+      rewrite <- union_assoc. rewrite (union_assoc \{u} \{u} _).
+      rewrite union_same. now rewrite (union_comm \{u} (fv_ctyp c0)).
+  - lets H: (open_ctrm_var_fv c k u).
+    lets H0: (open_ctyp_var_fv c0 k u).
+    destruct H; destruct H0;
+      rewrite <- H; rewrite <- H0;
+      simpl in *; eauto.
+    + right. repeat rewrite <- union_assoc.
+      now rewrite (union_comm _ \{u}).
+    + right. repeat rewrite <- union_assoc.
+      now rewrite (union_comm _ \{u}).
+    + right. rewrite (union_comm (fv_ctyp c0) \{u}). rewrite <- union_assoc.
+      rewrite <- union_assoc. rewrite (union_assoc \{u} \{u} _).
+      rewrite union_same. now rewrite (union_comm \{u} (fv_ctyp c0)).
+Qed.

@@ -6,19 +6,22 @@
 
 (** This module defines various helper lemmas about opening, closing, and local closure. *)
 
+
 Set Implicit Arguments.
 
 Require Import TLC.LibLN.
 Require Import Coq.Program.Equality.
 Require Import Definitions ConstrLangAlt ConstrTyping Binding.
+Require Import ConstrInterp.
 
 (** * Substitution Definitions *)
 
 Definition subst_cvar (z: var) (u: var) (c: cvar) : cvar :=
   match c with
-  | cvar_x x => cvar_x (subst_avar z u x)
-  | cvar_b i => cvar_b i
-  | cvar_f x => cvar_f x
+  (* | cvar_x x => cvar_x (subst_avar z u x) *)
+  | cvar_b_c i => cvar_b_c i
+  | cvar_b_l i => cvar_b_l i
+  | cvar_f x => cvar_f (If x = z then u else x)
   end.
 
 (** Substitution on types and declarations: [T[u/z]] and [D[u/z]]. *)
@@ -76,6 +79,110 @@ Fixpoint subst_constr (z: var) (u: var) (C: constr): constr :=
   | t ⦂ T => subst_ctrm z u t ⦂ subst_ctyp z u T
   | T <⦂ U => subst_ctyp z u T <⦂ subst_ctyp z u U
   end.
+
+Check ctyp_mutind.
+
+Lemma subst_open_ctyp_typ_commute :
+  (forall T x y k u,
+    subst_ctyp x y (open_rec_ctyp_typ k u T) = open_rec_ctyp_typ k u (subst_ctyp x y T)) /\
+  (forall D x y k u,
+    subst_cdec x y (open_rec_cdec_typ k u D) = open_rec_cdec_typ k u (subst_cdec x y D)).
+Proof.
+  apply ctyp_mutind; intros; eauto;
+    simpl in *; eauto;
+    try solve [f_equal; eauto].
+Qed.
+
+Lemma subst_open_ctrm_typ_commute :
+  (forall t x y k u,
+    subst_ctrm x y (open_rec_ctrm_typ k u t) = open_rec_ctrm_typ k u (subst_ctrm x y t)) /\
+  (forall v x y k u,
+    subst_cval x y (open_rec_cval_typ k u v) = open_rec_cval_typ k u (subst_cval x y v)) /\
+  (forall d x y k u,
+    subst_cdef x y (open_rec_cdef_typ k u d) = open_rec_cdef_typ k u (subst_cdef x y d)) /\
+  (forall ds x y k u,
+    subst_cdefs x y (open_rec_cdefs_typ k u ds) = open_rec_cdefs_typ k u (subst_cdefs x y ds)).
+Proof.
+  apply ctrm_mutind; intros; eauto;
+    simpl in *; eauto;
+    try solve [f_equal; eauto using subst_open_ctyp_typ_commute].
+  - f_equal.
+    + apply* subst_open_ctyp_typ_commute.
+    + apply* H.
+  - f_equal; try apply* subst_open_ctyp_typ_commute.
+    now apply* H.
+  - f_equal; apply* subst_open_ctyp_typ_commute.
+Qed.
+
+Lemma subst_open_constr_typ_commute : forall x y C k u,
+    subst_constr x y (open_rec_constr_typ k u C) = open_rec_constr_typ k u (subst_constr x y C).
+Proof.
+  dependent induction C; eauto;
+    intros; simpl in *; eauto;
+    try solve [ unfold open_constr_typ; simpl in *; f_equal; eauto ].
+  - f_equal; apply* subst_open_ctyp_typ_commute.
+  - f_equal. apply* subst_open_ctrm_typ_commute.
+    apply* subst_open_ctyp_typ_commute.
+Qed.
+
+Lemma map_cvar_subst : forall vm x y z c a,
+    map_cvar (vm & x ~ z) c a ->
+    map_cvar vm (cvar_f y) (avar_f z) ->
+    map_cvar vm (subst_cvar x y c) a.
+Proof.
+  introv Hm Hyz.
+  inversion Hm.
+  - subst. simpl. cases_if.
+    + apply binds_push_eq_inv in H as Heq. now subst.
+    + constructor. eapply binds_push_neq_inv. exact H. exact C.
+  - subst. rewrite dom_concat in H.
+    rewrite dom_single in H.
+    assert (Hneq: x0 <> x). {
+      eauto.
+    }
+    simpl. cases_if. apply map_cvar_f_notin. eauto.
+Qed.
+
+Lemma map_ctyp_subst_rules :
+  (forall e t T, e ⊢t t ⪯ T ->
+    forall tm vm x y z,
+      map_cvar vm (cvar_f y) (avar_f z) ->
+      e = (tm, vm & x ~ z) ->
+      (tm, vm) ⊢t (subst_ctyp x y t) ⪯ T) /\
+  (forall e d D, e ⊢d d ⪯ D ->
+    forall tm vm x y z,
+      map_cvar vm (cvar_f y) (avar_f z) ->
+      e = (tm, vm & x ~ z) ->
+      (tm, vm) ⊢d (subst_cdec x y d) ⪯ D).
+Proof.
+  apply map_ctyp_mutind; intros; eauto;
+    simpl in *; eauto.
+  - inversions H0. simpl. now constructor.
+  - inversions H0. constructor. apply* map_cvar_subst.
+Qed.
+
+Lemma subst_constr_satisfy : forall x y z tm vm G C,
+    (tm, vm & x ~ z, G) ⊧ C ->
+    map_cvar vm (cvar_f y) (avar_f z) ->
+    (tm, vm, G) ⊧ subst_constr x y C.
+Proof.
+  introv HC Hm.
+  dependent induction HC; eauto.
+  - constructor. apply* IHHC1. apply* IHHC2.
+  - constructor. apply* IHHC.
+  - apply sat_or2. apply* IHHC.
+  - apply sat_exists_typ with (L:=L) (T:=T). introv Hx.
+    specialize (H0 x0 Hx _ _ _ _ _ JMeq_refl Hm).
+    unfold subst_constr in H0.
+    unfold open_constr_typ in *.
+    lets Heq: (subst_open_constr_typ_commute x y C 0 x0).
+    unfold subst_constr in Heq.
+    rewrite <- Heq. eauto.
+  - admit.
+  - admit.
+  - simpl.
+    apply sat_sub with (S':=S') (T':=T'); eauto; apply* map_ctyp_subst_rules.
+Admitted.
 
 Lemma subst_constr_and : forall x y C1 C2,
     subst_constr x y C1 ⋏ subst_constr x y C2 = subst_constr x y (C1 ⋏ C2).
@@ -146,3 +253,4 @@ Proof.
   - dependent induction Hiso; try constructor*.
   - dependent induction Hiso; try constructor*.
 Qed.
+

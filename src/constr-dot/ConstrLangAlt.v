@@ -17,10 +17,8 @@ Require Import Definitions RecordAndInertTypes Decompose.
     Variables can either be free or bound.  *)
 Inductive cvar : Set :=
   | cvar_f : var -> cvar
-  (** Variables bound by DOT language. *)
-  | cvar_b_l : nat -> cvar
   (** Variables bound by constraint language. *)
-  | cvar_b_c : nat -> cvar.
+  | cvar_b : nat -> cvar.
 
 Inductive tvar : Set :=
   | tvar_f : var -> tvar
@@ -87,8 +85,8 @@ Inductive constr : Set :=
 | constr_exists_var : constr -> constr
 (** S <: T *)
 | constr_sub : ctyp -> ctyp -> constr
-(** t : T *)
-| constr_typ : ctrm -> ctyp -> constr
+(** x : T *)
+| constr_typ : cvar -> ctyp -> constr
 .
 
 (** - true constraint *)
@@ -174,8 +172,7 @@ with open_rec_cdec_typ (k : nat) (u : var) (D : cdec) : cdec :=
 Definition open_rec_cvar (k : nat) (u : var) (v : cvar) : cvar :=
   match v with
   | cvar_f x => cvar_f x
-  | cvar_b_c i => If k = i then cvar_f u else cvar_b_c i
-  | cvar_b_l i => cvar_b_l i
+  | cvar_b i => If k = i then cvar_f u else cvar_b i
   end.
 
 Fixpoint open_rec_ctyp_var (k : nat) (u : var) (T : ctyp) : ctyp :=
@@ -252,7 +249,7 @@ Fixpoint open_rec_constr_typ (k : nat) (u : var) (C : constr) : constr :=
   | constr_exists_typ C => constr_exists_typ (open_rec_constr_typ (S k) u C)
   | constr_exists_var C => constr_exists_var (open_rec_constr_typ k u C)
   | constr_sub T1 T2 => constr_sub (open_rec_ctyp_typ k u T1) (open_rec_ctyp_typ k u T2)
-  | constr_typ t T0 => constr_typ (open_rec_ctrm_typ k u t) (open_rec_ctyp_typ k u T0)
+  | constr_typ x T0 => constr_typ x (open_rec_ctyp_typ k u T0)
   end.
 
 Fixpoint open_rec_constr_var (k : nat) (u : var) (C : constr) : constr :=
@@ -264,7 +261,7 @@ Fixpoint open_rec_constr_var (k : nat) (u : var) (C : constr) : constr :=
   | constr_exists_typ C => constr_exists_typ (open_rec_constr_var k u C)
   | constr_exists_var C => constr_exists_var (open_rec_constr_var (S k) u C)
   | constr_sub T1 T2 => constr_sub (open_rec_ctyp_var k u T1) (open_rec_ctyp_var k u T2)
-  | constr_typ t T0 => constr_typ (open_rec_ctrm_var k u t) (open_rec_ctyp_var k u T0)
+  | constr_typ t T0 => constr_typ (open_rec_cvar k u t) (open_rec_ctyp_var k u T0)
   end.
 
 Definition open_ctyp_typ (u : var) (T : ctyp) : ctyp := open_rec_ctyp_typ 0 u T.
@@ -343,7 +340,7 @@ Inductive iso_cvar_avar : cvar -> avar -> Prop :=
   | iso_cvar_f : forall x,
       iso_cvar_avar (cvar_f x) (avar_f x)
   | iso_cvar_b_l : forall i,
-      iso_cvar_avar (cvar_b_l i) (avar_b i).
+      iso_cvar_avar (cvar_b i) (avar_b i).
 
 Inductive iso_ctyp_typ : ctyp -> typ -> Prop :=
 | iso_ctyp_top : ctyp_top ⩭ typ_top
@@ -378,72 +375,71 @@ with iso_cdec_dec : cdec -> dec -> Prop :=
 
 Hint Constructors iso_cvar_avar iso_ctyp_typ iso_cdec_dec.
 
-Theorem iso_cvar_exists : forall a, exists c, iso_cvar_avar c a.
-Proof.
-  destruct a.
-  - exists (cvar_b_l n). eauto.
-  - exists (cvar_f v). eauto.
-Qed.
+(* Theorem iso_cvar_exists : forall a, exists c, iso_cvar_avar c a. *)
+(* Proof. *)
+(*   destruct a. *)
+(*   - exists (cvar_b_l n). eauto. *)
+(*   - exists (cvar_f v). eauto. *)
+(* Qed. *)
 
-Theorem iso_ctyp_exists : forall T', exists T, T ⩭ T'
-with iso_cdec_exists : forall D', exists D, iso_cdec_dec D D'.
-Proof.
-  all: introv.
-  - dependent induction T'.
-    -- exists ctyp_top. eauto.
-    -- exists ctyp_bot. eauto.
-    -- destruct (iso_cdec_exists d) as [ d' Hd ].
-       exists (ctyp_rcd d'). eauto.
-    -- destruct IHT'1 as [t1 H1].
-       destruct IHT'2 as [t2 H2].
-       exists (ctyp_and t1 t2). eauto.
-    -- destruct (iso_cvar_exists a).
-       exists (ctyp_sel x t). eauto.
-    -- destruct IHT' as [t' H]. exists (ctyp_bnd t'). eauto.
-    -- destruct IHT'1 as [t1 H1].
-       destruct IHT'2 as [t2 H2].
-       exists (ctyp_all t1 t2). eauto.
-  - dependent induction D'.
-    -- destruct (iso_ctyp_exists t0) as [ T0 H0 ].
-       destruct (iso_ctyp_exists t1) as [ T1 H1 ].
-       exists (cdec_typ t T0 T1). eauto.
-    -- destruct (iso_ctyp_exists t0) as [ T0 H0 ].
-       exists (cdec_trm t T0). eauto.
-Qed.
+(* Theorem iso_ctyp_exists : forall T', exists T, T ⩭ T' *)
+(* with iso_cdec_exists : forall D', exists D, iso_cdec_dec D D'. *)
+(* Proof. *)
+(*   all: introv. *)
+(*   - dependent induction T'. *)
+(*     -- exists ctyp_top. eauto. *)
+(*     -- exists ctyp_bot. eauto. *)
+(*     -- destruct (iso_cdec_exists d) as [ d' Hd ]. *)
+(*        exists (ctyp_rcd d'). eauto. *)
+(*     -- destruct IHT'1 as [t1 H1]. *)
+(*        destruct IHT'2 as [t2 H2]. *)
+(*        exists (ctyp_and t1 t2). eauto. *)
+(*     -- destruct (iso_cvar_exists a). *)
+(*        exists (ctyp_sel x t). eauto. *)
+(*     -- destruct IHT' as [t' H]. exists (ctyp_bnd t'). eauto. *)
+(*     -- destruct IHT'1 as [t1 H1]. *)
+(*        destruct IHT'2 as [t2 H2]. *)
+(*        exists (ctyp_all t1 t2). eauto. *)
+(*   - dependent induction D'. *)
+(*     -- destruct (iso_ctyp_exists t0) as [ T0 H0 ]. *)
+(*        destruct (iso_ctyp_exists t1) as [ T1 H1 ]. *)
+(*        exists (cdec_typ t T0 T1). eauto. *)
+(*     -- destruct (iso_ctyp_exists t0) as [ T0 H0 ]. *)
+(*        exists (cdec_trm t T0). eauto. *)
+(* Qed. *)
 
-Lemma iso_cvar_unique : forall a c1 c2,
-    iso_cvar_avar c1 a ->
-    iso_cvar_avar c2 a ->
-    c1 = c2.
-Proof.
-  introv H1 H2.
-  inversion H1; inversion H2; subst; try inversion H4; eauto.
-Qed.
+(* Lemma iso_cvar_unique : forall a c1 c2, *)
+(*     iso_cvar_avar c1 a -> *)
+(*     iso_cvar_avar c2 a -> *)
+(*     c1 = c2. *)
+(* Proof. *)
+(*   introv H1 H2. *)
+(*   inversion H1; inversion H2; subst; try inversion H4; eauto. *)
+(* Qed. *)
 
-Lemma iso_ctyp_unique : forall T T1 T2,
-    T1 ⩭ T ->
-    T2 ⩭ T ->
-    T1 = T2
-with iso_cdec_unique : forall D D1 D2,
-    iso_cdec_dec D1 D ->
-    iso_cdec_dec D2 D ->
-    D1 = D2.
-Proof.
-  all: introv Hiso1 Hiso2.
-  - dependent induction T; inversion Hiso1; inversion Hiso2; trivial; subst.
-    -- f_equal. apply* iso_cdec_unique.
-    -- f_equal. apply* IHT1. apply* IHT2.
-    -- lets Heq: (iso_cvar_unique H1 H5). subst. trivial.
-    -- f_equal. apply* IHT.
-    -- f_equal. apply* IHT1. apply* IHT2.
-  - dependent induction D; inversion Hiso1; inversion Hiso2; subst; f_equal; apply* iso_ctyp_unique.
-Qed.
+(* Lemma iso_ctyp_unique : forall T T1 T2, *)
+(*     T1 ⩭ T -> *)
+(*     T2 ⩭ T -> *)
+(*     T1 = T2 *)
+(* with iso_cdec_unique : forall D D1 D2, *)
+(*     iso_cdec_dec D1 D -> *)
+(*     iso_cdec_dec D2 D -> *)
+(*     D1 = D2. *)
+(* Proof. *)
+(*   all: introv Hiso1 Hiso2. *)
+(*   - dependent induction T; inversion Hiso1; inversion Hiso2; trivial; subst. *)
+(*     -- f_equal. apply* iso_cdec_unique. *)
+(*     -- f_equal. apply* IHT1. apply* IHT2. *)
+(*     -- lets Heq: (iso_cvar_unique H1 H5). subst. trivial. *)
+(*     -- f_equal. apply* IHT. *)
+(*     -- f_equal. apply* IHT1. apply* IHT2. *)
+(*   - dependent induction D; inversion Hiso1; inversion Hiso2; subst; f_equal; apply* iso_ctyp_unique. *)
+(* Qed. *)
 
 Definition fv_cvar (x: cvar) : vars :=
   match x with
   | cvar_f x => \{x}
-  | cvar_b_l i => \{}
-  | cvar_b_c i => \{}
+  | cvar_b i => \{}
   end.
 
 Fixpoint fv_ctyp (T: ctyp) : vars :=
@@ -496,7 +492,7 @@ Fixpoint fv_constr (C: constr) : vars :=
   | C1 ⋎ C2 => fv_constr C1 \u fv_constr C2
   | ∃t C => fv_constr C
   | ∃v C => fv_constr C
-  | t ⦂ T => fv_ctrm t \u fv_ctyp T
+  | x ⦂ T => fv_cvar x \u fv_ctyp T
   | T <⦂ U => fv_ctyp T \u fv_ctyp U
   end.
 
@@ -566,7 +562,6 @@ Lemma open_cvar_fv : forall k u cv,
 Proof.
   introv. unfold open_rec_cvar.
   destruct cv; simpl.
-  - left. eauto.
   - left. eauto.
   - cases_if; eauto.
 Qed.
@@ -640,7 +635,6 @@ Proof.
         try solve [left; now f_equal];
         try solve [right; now rewrite union_empty_r].
       right. rewrite union_empty_l. now rewrite union_comm.
-      right. rewrite union_same. now rewrite union_comm.
       right. rewrite union_same. now rewrite union_comm.
 
       destruct c; destruct c0; simpl in *; eauto;
@@ -730,16 +724,36 @@ Proof.
     + right. rewrite (union_comm (fv_ctyp c0) \{u}). rewrite <- union_assoc.
       rewrite <- union_assoc. rewrite (union_assoc \{u} \{u} _).
       rewrite union_same. now rewrite (union_comm \{u} (fv_ctyp c0)).
-  - lets H: (open_ctrm_var_fv c k u).
+  - lets H: (open_cvar_fv k u c).
     lets H0: (open_ctyp_var_fv c0 k u).
     destruct H; destruct H0;
       rewrite <- H; rewrite <- H0;
       simpl in *; eauto.
     + right. repeat rewrite <- union_assoc.
       now rewrite (union_comm _ \{u}).
-    + right. repeat rewrite <- union_assoc.
-      now rewrite (union_comm _ \{u}).
-    + right. rewrite (union_comm (fv_ctyp c0) \{u}). rewrite <- union_assoc.
-      rewrite <- union_assoc. rewrite (union_assoc \{u} \{u} _).
-      rewrite union_same. now rewrite (union_comm \{u} (fv_ctyp c0)).
+    (* + right. repeat rewrite <- union_assoc. *)
+    (*   now rewrite (union_comm _ \{u}). *)
+    + destruct c; simpl in *.
+      * right. rewrite <- H. rewrite union_comm.
+        rewrite union_assoc. now rewrite union_same.
+      * cases_if.
+        {
+          simpl in *. right. rewrite union_empty_l.
+          now rewrite union_comm.
+        }
+        {
+          simpl in H. right. rewrite union_empty_l.
+          now rewrite union_comm.
+        }
+    + destruct c; simpl in *.
+      * right. rewrite <- H. now rewrite union_assoc.
+      * cases_if.
+        {
+          simpl in *. right. rewrite union_empty_l.
+          rewrite union_comm. rewrite union_assoc. now rewrite union_same.
+        }
+        {
+          simpl in H. right. rewrite <- H.
+          now rewrite union_assoc.
+        }
 Qed.

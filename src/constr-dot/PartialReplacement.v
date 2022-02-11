@@ -189,7 +189,7 @@ Inductive prepl_constr : var -> var -> constr -> constr -> Prop :=
     prepl_constr x y (S <⦂ T) (S' <⦂ T')
 
 | prepl_constr_typ : forall x y t t' T T',
-    prepl_ctrm x y t t' ->
+    prepl_cvar x y t t' ->
     prepl_ctyp x y T T' ->
     prepl_constr x y (t ⦂ T) (t' ⦂ T')
 .
@@ -283,5 +283,5 @@ Lemma open_constr_var_prepl :
     forall k u, prepl_constr y x (open_rec_constr_var k u C) (open_rec_constr_var k u C').
 Proof.
   introv Hpr. introv.
-  dependent induction Hpr; simpl in *; eauto using open_ctyp_var_prepl, open_ctrm_var_prepl.
+  dependent induction Hpr; simpl in *; eauto using open_ctyp_var_prepl, open_cvar_prepl.
 Qed.

@@ -201,7 +201,7 @@ Proof.
 Qed.
 
 Lemma ent_ty_var_sub : forall x s t,
-    ctrm_cvar (cvar_f x) ⦂ s ⋏ s <⦂ t ⊩ ctrm_cvar (cvar_f x) ⦂ t.
+    cvar_f x ⦂ s ⋏ s <⦂ t ⊩ cvar_f x ⦂ t.
 Proof.
   introv. introe.
   inversions H.

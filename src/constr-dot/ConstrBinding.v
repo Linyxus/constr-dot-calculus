@@ -19,8 +19,8 @@ Require Import ConstrInterp.
 Definition subst_cvar (z: var) (u: var) (c: cvar) : cvar :=
   match c with
   (* | cvar_x x => cvar_x (subst_avar z u x) *)
-  | cvar_b_c i => cvar_b_c i
-  | cvar_b_l i => cvar_b_l i
+  | cvar_b i => cvar_b i
+  (* | cvar_b_l i => cvar_b_l i *)
   | cvar_f x => cvar_f (If x = z then u else x)
   end.
 
@@ -76,7 +76,7 @@ Fixpoint subst_constr (z: var) (u: var) (C: constr): constr :=
   | C1 ⋎ C2 => subst_constr z u C1 ⋎ subst_constr z u C2
   | ∃t C0 => ∃t (subst_constr z u C0)
   | ∃v C0 => ∃v (subst_constr z u C0)
-  | t ⦂ T => subst_ctrm z u t ⦂ subst_ctyp z u T
+  | t ⦂ T => subst_cvar z u t ⦂ subst_ctyp z u T
   | T <⦂ U => subst_ctyp z u T <⦂ subst_ctyp z u U
   end.
 
@@ -121,8 +121,7 @@ Proof.
     intros; simpl in *; eauto;
     try solve [ unfold open_constr_typ; simpl in *; f_equal; eauto ].
   - f_equal; apply* subst_open_ctyp_typ_commute.
-  - f_equal. apply* subst_open_ctrm_typ_commute.
-    apply* subst_open_ctyp_typ_commute.
+  - f_equal. apply* subst_open_ctyp_typ_commute.
 Qed.
 
 Lemma map_cvar_subst : forall vm x y z c a,
@@ -178,8 +177,13 @@ Proof.
     lets Heq: (subst_open_constr_typ_commute x y C 0 x0).
     unfold subst_constr in Heq.
     rewrite <- Heq. eauto.
-  - admit.
-  - admit.
+  - simpl in *. apply sat_exists_var with (L:=L) (u:=u).
+    introv Hx0. specialize (H0 x0 Hx0).
+    rewrite <- concat_assoc in H0.
+    specialize (H0 _ _ _ _ _ JMeq_refl).
+  - simpl in *.
+    apply sat_typ with (t':=t') (T':=T'); eauto.
+    apply* map_cvar_subst. apply* map_ctyp_subst_rules.
   - simpl.
     apply sat_sub with (S':=S') (T':=T'); eauto; apply* map_ctyp_subst_rules.
 Admitted.

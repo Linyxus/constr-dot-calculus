@@ -167,7 +167,7 @@ Proof.
     -- destruct c.
        + lets Heqy: (map_cvar_unique_avar H4 H10). eauto.
        + inversion H4; inversion H10; subst.
-       + lets Heqy: (map_cvar_unique_avar H4 H10). eauto.
+       (* + lets Heqy: (map_cvar_unique_avar H4 H10). eauto. *)
     -- apply~ IHT.
     -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
     -- specialize (IHT1 _ _ H4 H11). specialize (IHT2 _ _ H5 H12). subst. trivial.
@@ -278,9 +278,9 @@ Inductive satisfy_constr : (tctx * vctx * ctx) -> constr -> Prop :=
     (tm, vm, G) ⊧ (∃v C)
 
 | sat_typ : forall tm vm G t t' T T',
-    (tm, vm) ⊢v t ⪯ t' ->
+    map_cvar vm t t' ->
     (tm, vm) ⊢t T ⪯ T' ->
-    G ⊢ t' : T' ->
+    G ⊢ trm_var t' : T' ->
     (tm, vm, G) ⊧ t ⦂ T
 
 | sat_sub : forall tm vm G S S' T T',
@@ -411,7 +411,7 @@ Proof.
     apply* H0.
     rewrite -> concat_assoc. eauto.
   - apply sat_typ with (t':=t') (T':=T').
-    apply* map_ctrm_vm_swap_rules.
+    apply* map_cvar_vm_swap.
     apply* map_ctyp_vm_swap_rules. eauto.
   - apply sat_sub with (S':=S') (T':=T'); eauto; apply* map_ctyp_vm_swap_rules.
 Qed.
@@ -614,7 +614,8 @@ Proof.
       apply~ H0.
       apply~ open_constr_var_prepl.
   - inversions Hpr. simpl in Hx. econstructor.
-    + eapply map_ctrm_prepl. exact H. exact Hm. exact H6. eauto.
+    + eapply map_cvar_prepl with (c:=t). eauto.
+      exact H. exact Hm. eauto.
     + eapply map_ctyp_prepl. exact H0. exact Hm. exact H8. eauto.
     + eauto.
   - inversions Hpr. simpl in Hx. econstructor.

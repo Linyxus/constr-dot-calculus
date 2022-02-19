@@ -475,7 +475,7 @@ Proof.
     exact m. exact H0. exact H7.
   - inversions H0. inversion H2; subst. simpl in H3.
     eauto.
-  - inversions H1. inversions H3.
+  - inversions H1. inversions H3. simpl in H4. eauto.
   - inversions H1. inversions H3. simpl in H4.
     eauto.
   - inversions H0. inversions H2. simpl in H3.

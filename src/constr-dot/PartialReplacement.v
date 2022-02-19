@@ -88,6 +88,11 @@ Inductive prepl_ctyp : var -> var -> ctyp -> ctyp -> Prop :=
     prepl_ctyp x y T T' ->
     prepl_ctyp x y (ctyp_bnd T) (ctyp_bnd T')
 
+| prepl_ctyp_all : forall x y S S' T T',
+    prepl_ctyp x y S S' ->
+    prepl_ctyp x y T T' ->
+    prepl_ctyp x y (ctyp_all S T) (ctyp_all S' T')
+
 with prepl_cdec : var -> var -> cdec -> cdec -> Prop :=
 
 | prepl_cdec_typ : forall x y A T T' U U',

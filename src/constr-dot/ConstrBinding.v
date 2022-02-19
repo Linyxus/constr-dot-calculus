@@ -93,6 +93,29 @@ Proof.
     try solve [f_equal; eauto].
 Qed.
 
+Lemma subst_open_cvar_commute : forall c x y k u,
+    u <> x ->
+    subst_cvar x y (open_rec_cvar k u c) = open_rec_cvar k u (subst_cvar x y c).
+Proof.
+  introv Hne. destruct c.
+  - simpl. cases_if; eauto.
+  - simpl. cases_if; eauto.
+    simpl. cases_if. eauto.
+Qed.
+
+Lemma subst_open_ctyp_var_commute :
+  (forall T x y k u,
+    u <> x ->
+    subst_ctyp x y (open_rec_ctyp_var k u T) = open_rec_ctyp_var k u (subst_ctyp x y T)) /\
+  (forall D x y k u,
+    u <> x ->
+    subst_cdec x y (open_rec_cdec_var k u D) = open_rec_cdec_var k u (subst_cdec x y D)).
+Proof.
+  apply ctyp_mutind; intros; eauto;
+    simpl in *; eauto;
+    try solve [f_equal; eauto using subst_open_cvar_commute].
+Qed.
+
 Lemma subst_open_ctrm_typ_commute :
   (forall t x y k u,
     subst_ctrm x y (open_rec_ctrm_typ k u t) = open_rec_ctrm_typ k u (subst_ctrm x y t)) /\
@@ -124,6 +147,36 @@ Proof.
   - f_equal. apply* subst_open_ctyp_typ_commute.
 Qed.
 
+Lemma subst_open_constr_var_commute : forall x y C k u,
+    u <> x ->
+    subst_constr x y (open_rec_constr_var k u C) = open_rec_constr_var k u (subst_constr x y C).
+Proof.
+  dependent induction C; eauto;
+    intros; simpl in *; eauto;
+    try solve [ unfold open_constr_typ; simpl in *; f_equal; eauto ].
+  - f_equal; apply* subst_open_ctyp_var_commute.
+  - f_equal. apply* subst_open_cvar_commute. apply* subst_open_ctyp_var_commute.
+Qed.
+
+Lemma map_cvar_subst_aux : forall vm1 vm2 x y z c a,
+    map_cvar (vm1 & x ~ z & vm2) c a ->
+    x # vm2 ->
+    map_cvar (vm1 & vm2) (cvar_f y) (avar_f z) ->
+    map_cvar (vm1 & vm2) (subst_cvar x y c) a.
+Proof.
+  introv Hm Hx Hyz.
+  inversion Hm.
+  - subst. simpl. cases_if.
+    + lets Hb: (binds_middle_eq vm1 z Hx).
+      lets Heq: (binds_functional H Hb). now subst.
+    + apply map_cvar_f_in. apply binds_remove with (E2:=x~z); eauto.
+  - subst.
+    rewrite dom_concat in H. rewrite dom_concat in H.
+    rewrite dom_single in H.
+    assert (Hneq: x0 <> x) by eauto.
+    simpl. cases_if. apply map_cvar_f_notin. eauto.
+Qed.
+
 Lemma map_cvar_subst : forall vm x y z c a,
     map_cvar (vm & x ~ z) c a ->
     map_cvar vm (cvar_f y) (avar_f z) ->
@@ -140,6 +193,26 @@ Proof.
       eauto.
     }
     simpl. cases_if. apply map_cvar_f_notin. eauto.
+Qed.
+
+Lemma map_ctyp_subst_rules_aux :
+  (forall e t T, e ⊢t t ⪯ T ->
+    forall tm vm1 vm2 x y z,
+      map_cvar (vm1 & vm2) (cvar_f y) (avar_f z) ->
+      e = (tm, vm1 & x ~ z & vm2) ->
+      x # vm2 ->
+      (tm, vm1 & vm2) ⊢t (subst_ctyp x y t) ⪯ T) /\
+  (forall e d D, e ⊢d d ⪯ D ->
+    forall tm vm1 vm2 x y z,
+      map_cvar (vm1 & vm2) (cvar_f y) (avar_f z) ->
+      e = (tm, vm1 & x ~ z & vm2) ->
+      x # vm2 ->
+      (tm, vm1 & vm2) ⊢d (subst_cdec x y d) ⪯ D).
+Proof.
+  apply map_ctyp_mutind; intros; eauto;
+    simpl in *; eauto.
+  - inversions H0. simpl. now constructor.
+  - inversions H0. constructor. apply* map_cvar_subst_aux.
 Qed.
 
 Lemma map_ctyp_subst_rules :
@@ -160,33 +233,68 @@ Proof.
   - inversions H0. constructor. apply* map_cvar_subst.
 Qed.
 
+Lemma map_cvar_push_neq : forall vm x z0 y z,
+    map_cvar vm (cvar_f y) (avar_f z) ->
+    x <> y ->
+    map_cvar (vm & x ~ z0) (cvar_f y) (avar_f z).
+Proof.
+  introv Hm Hneq. inversion Hm; subst; eauto.
+Qed.
+
+Lemma subst_constr_satisfy_aux : forall x y z tm vm1 vm2 G C,
+    (tm, vm1 & x ~ z & vm2, G) ⊧ C ->
+    x # vm2 ->
+    map_cvar (vm1 & vm2) (cvar_f y) (avar_f z) ->
+    (tm, vm1 & vm2, G) ⊧ subst_constr x y C.
+Proof.
+  introv HC Hx Hm.
+  dependent induction HC; eauto.
+  - simpl. constructor. apply* IHHC1. apply* IHHC2.
+  - simpl. apply sat_or1. apply* IHHC.
+  - simpl. apply sat_or2. apply* IHHC.
+  - simpl. apply sat_exists_typ with (L:=L) (T:=T). introv HxL.
+    specialize (H0 x0 HxL _ _ _ _ _ _ JMeq_refl Hx Hm).
+    lets Heq: (subst_open_constr_typ_commute x y C 0 x0).
+    unfold open_constr_typ in *. now rewrite <- Heq.
+  - simpl. apply sat_exists_var with (L:=L \u \{x} \u \{y}) (u:=u).
+    introv Hx0. assert (HxL: x0 \notin L) by eauto.
+    assert (Heq: (tm, vm1 & x ~ z & vm2 & x0 ~ u, G) ~= (tm, vm1 & x ~ z & (vm2 & x0 ~ u), G)).
+    {
+      now rewrite concat_assoc.
+    }
+    specialize (H0 x0 HxL _ _ _ vm1 (vm2 & x0 ~ u) _ Heq).
+    assert (Hxn: x # vm2 & x0 ~ u). {
+      rewrite dom_concat. eauto.
+    }
+    specialize (H0 Hxn).
+    assert (Hm1: map_cvar (vm1 & (vm2 & x0 ~ u)) (cvar_f y) (avar_f z)).
+    {
+      rewrite concat_assoc. apply~ map_cvar_push_neq.
+    }
+    specialize (H0 Hm1). rewrite <- concat_assoc.
+    lets Heq1: subst_open_constr_var_commute.
+    specialize (Heq1 x y C 0 x0).
+    assert (Hneq0: x0 <> x) by eauto.
+    specialize (Heq1 Hneq0). unfold open_constr_var in *.
+    now rewrite <- Heq1.
+  - simpl in *.
+    apply sat_typ with (t':=t') (T':=T'); eauto.
+    apply* map_cvar_subst_aux. apply* map_ctyp_subst_rules_aux.
+  - simpl.
+    apply sat_sub with (S':=S') (T':=T'); eauto; apply* map_ctyp_subst_rules_aux.
+Qed.
+
 Lemma subst_constr_satisfy : forall x y z tm vm G C,
     (tm, vm & x ~ z, G) ⊧ C ->
     map_cvar vm (cvar_f y) (avar_f z) ->
     (tm, vm, G) ⊧ subst_constr x y C.
 Proof.
-  introv HC Hm.
-  dependent induction HC; eauto.
-  - constructor. apply* IHHC1. apply* IHHC2.
-  - constructor. apply* IHHC.
-  - apply sat_or2. apply* IHHC.
-  - apply sat_exists_typ with (L:=L) (T:=T). introv Hx.
-    specialize (H0 x0 Hx _ _ _ _ _ JMeq_refl Hm).
-    unfold subst_constr in H0.
-    unfold open_constr_typ in *.
-    lets Heq: (subst_open_constr_typ_commute x y C 0 x0).
-    unfold subst_constr in Heq.
-    rewrite <- Heq. eauto.
-  - simpl in *. apply sat_exists_var with (L:=L) (u:=u).
-    introv Hx0. specialize (H0 x0 Hx0).
-    rewrite <- concat_assoc in H0.
-    specialize (H0 _ _ _ _ _ JMeq_refl).
-  - simpl in *.
-    apply sat_typ with (t':=t') (T':=T'); eauto.
-    apply* map_cvar_subst. apply* map_ctyp_subst_rules.
-  - simpl.
-    apply sat_sub with (S':=S') (T':=T'); eauto; apply* map_ctyp_subst_rules.
-Admitted.
+  introv Hm Hyz.
+  lets Heq1: concat_empty_r vm. rewrite <- Heq1.
+  rewrite <- (concat_empty_r (vm & x ~ z)) in Hm.
+  apply* subst_constr_satisfy_aux.
+  now rewrite -> concat_empty_r.
+Qed.
 
 Lemma subst_constr_and : forall x y C1 C2,
     subst_constr x y C1 ⋏ subst_constr x y C2 = subst_constr x y (C1 ⋏ C2).
@@ -204,7 +312,9 @@ Qed.
 Lemma subst_fresh_cvar: forall x y,
   (forall c: cvar, x \notin fv_cvar c -> subst_cvar x y c = c).
 Proof.
-  intros. destruct* c. simpl. rewrite subst_fresh_avar; auto.
+  intros. destruct* c. simpl. cases_if.
+  simpl in H. apply notin_same in H. destruct H.
+  trivial.
 Qed.
 
 (** - in types and declarations *)

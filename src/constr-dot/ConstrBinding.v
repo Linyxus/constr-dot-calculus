@@ -11,7 +11,8 @@ Set Implicit Arguments.
 
 Require Import TLC.LibLN.
 Require Import Coq.Program.Equality.
-Require Import Definitions ConstrLangAlt ConstrTyping Binding.
+Require Import Definitions ConstrLangAlt ConstrEntailment ConstrTyping Binding.
+Require Import PartialReplacement.
 Require Import ConstrInterp.
 
 (** * Substitution Definitions *)
@@ -80,7 +81,35 @@ Fixpoint subst_constr (z: var) (u: var) (C: constr): constr :=
   | T <⦂ U => subst_ctyp z u T <⦂ subst_ctyp z u U
   end.
 
-Check ctyp_mutind.
+Lemma subst_to_prepl_cvar : forall c x y,
+    prepl_cvar y x (subst_cvar x y c) c.
+Proof.
+  introv. destruct c.
+  - simpl. cases_if; constructor.
+  - simpl. constructor.
+Qed.
+
+Lemma subst_to_prepl_ctyp_rules :
+  (forall T x y,
+    prepl_ctyp y x (subst_ctyp x y T) T) /\
+  (forall D x y,
+    prepl_cdec y x (subst_cdec x y D) D).
+Proof.
+  apply ctyp_mutind; intros; eauto;
+    simpl in *; eauto using subst_to_prepl_cvar.
+Qed.
+
+Lemma subst_to_prepl_constr : forall C x y,
+    prepl_constr y x (subst_constr x y C) C.
+Proof.
+  introv.
+  dependent induction C; eauto;
+    try solve [simpl; constructor; eauto].
+  - simpl. constructor; apply* subst_to_prepl_ctyp_rules.
+  - simpl. constructor.
+    apply* subst_to_prepl_cvar.
+    apply* subst_to_prepl_ctyp_rules.
+Qed.
 
 Lemma subst_open_ctyp_typ_commute :
   (forall T x y k u,
@@ -296,6 +325,77 @@ Proof.
   now rewrite -> concat_empty_r.
 Qed.
 
+Lemma map_cvar_exists : forall vm x,
+    exists y, map_cvar vm (cvar_f x) (avar_f y).
+Proof.
+  introv.
+  induction vm using env_ind.
+  - exists x. apply map_cvar_f_notin.
+    rewrite dom_empty. apply notin_empty.
+  - destruct IHvm as [y IH]. inversion IH.
+    + subst.
+      assert (Hx: x \in dom (vm & x0 ~ v)). {
+        rewrite dom_concat. rewrite in_union. left.
+        now apply get_some_inv in H2.
+      }
+      lets Hv: (get_some Hx). destruct Hv as [v0 Hv].
+      exists v0. now apply map_cvar_f_in.
+    + subst.
+      lets Hg: get_push y x0 v vm. cases_if.
+      * exists v. now apply map_cvar_f_in.
+      * assert (Hgn1: get y vm = None). {
+          apply~ get_none.
+        }
+        rewrite Hgn1 in Hg.
+        apply get_none_inv in Hg.
+        exists y.
+        now apply map_cvar_f_notin.
+Qed.
+
+Lemma subst_cvar_fresh : forall x y c,
+    x <> y ->
+    x \notin fv_cvar (subst_cvar x y c).
+Proof.
+  introv Hneq. destruct c.
+  - simpl. cases_if; eauto.
+  - simpl. eauto.
+Qed.
+
+Lemma subst_ctyp_fresh_rules :
+  (forall T x y, x <> y -> x \notin fv_ctyp (subst_ctyp x y T)) /\
+  (forall D x y, x <> y -> x \notin fv_cdec (subst_cdec x y D)).
+Proof.
+  apply ctyp_mutind; intros;
+    simpl in *; eauto using subst_cvar_fresh.
+Qed.
+
+Definition subst_ctyp_fresh := proj21 subst_ctyp_fresh_rules.
+
+Lemma subst_constr_fresh : forall C x y,
+    x <> y ->
+    x \notin fv_constr (subst_constr x y C).
+Proof.
+  introv Hneq.
+  dependent induction C;
+    simpl in *; eauto using subst_ctyp_fresh, subst_cvar_fresh.
+Qed.
+
+Lemma subst_constr_entail : forall x y C D,
+    x <> y ->
+    C ⊩ D ->
+    subst_constr x y C ⊩ subst_constr x y D.
+Proof.
+  introv Hneq Hent. introe.
+  destruct (map_cvar_exists vm y) as [z Hm].
+  lets Hfrx: (subst_constr_fresh C Hneq).
+  lets Hpr: (subst_to_prepl_constr C x y).
+  lets Hsat1: prepl_constr_satisfy.
+  specialize (Hsat1 x y z tm vm G (subst_constr x y C) C).
+  specialize (Hsat1 H Hpr Hm Hfrx).
+  apply Hent in Hsat1 as Hsat2; eauto.
+  now apply subst_constr_satisfy with (z:=z).
+Qed.
+
 Lemma subst_constr_and : forall x y C1 C2,
     subst_constr x y C1 ⋏ subst_constr x y C2 = subst_constr x y (C1 ⋏ C2).
 Proof.
@@ -345,7 +445,7 @@ Proof.
   intros.
   dependent induction C; unfold fv_constr; simpl in *; eauto; f_equal;
     eauto using subst_fresh_ctyp, subst_fresh_ctrm_cval_cdef_cdefs.
-  apply* subst_fresh_ctrm_cval_cdef_cdefs.
+  apply* subst_fresh_cvar.
 Qed.
 
 (** If a variable has a type, then it is a named variable. *)
@@ -356,15 +456,15 @@ Proof.
   introv H; dependent induction H; eauto.
 Qed.
 
-Lemma subst_iso_ctyp : forall x y t T,
-    t ⩭ T ->
-    subst_ctyp x y t ⩭ subst_typ x y T
-with subst_iso_cdec : forall x y d D,
-    iso_cdec_dec d D ->
-    iso_cdec_dec (subst_cdec x y d) (subst_dec x y D).
-Proof.
-  all: introv Hiso.
-  - dependent induction Hiso; try constructor*.
-  - dependent induction Hiso; try constructor*.
-Qed.
+(* Lemma subst_iso_ctyp : forall x y t T, *)
+(*     t ⩭ T -> *)
+(*     subst_ctyp x y t ⩭ subst_typ x y T *)
+(* with subst_iso_cdec : forall x y d D, *)
+(*     iso_cdec_dec d D -> *)
+(*     iso_cdec_dec (subst_cdec x y d) (subst_dec x y D). *)
+(* Proof. *)
+(*   all: introv Hiso. *)
+(*   - dependent induction Hiso; try constructor*. *)
+(*   - dependent induction Hiso; try constructor*. *)
+(* Qed. *)
 

@@ -396,6 +396,32 @@ Proof.
   now apply subst_constr_satisfy with (z:=z).
 Qed.
 
+Lemma subst_cvar_same : forall x c,
+    subst_cvar x x c = c.
+Proof.
+  introv. destruct c; eauto.
+  simpl. cases_if; eauto.
+Qed.
+
+Lemma subst_ctyp_same_rules :
+  (forall T x, subst_ctyp x x T = T) /\
+  (forall D x, subst_cdec x x D = D).
+Proof.
+  apply ctyp_mutind; intros;
+    simpl in *; eauto;
+    try solve [f_equal; eauto using subst_cvar_same].
+Qed.
+
+Definition subst_ctyp_same := proj21 subst_ctyp_same_rules.
+
+Lemma subst_constr_same : forall C x,
+    subst_constr x x C = C.
+Proof.
+  introv.
+  dependent induction C; simpl in *; eauto;
+    try solve [f_equal; eauto using subst_ctyp_same, subst_cvar_same].
+Qed.
+
 Lemma subst_constr_and : forall x y C1 C2,
     subst_constr x y C1 ⋏ subst_constr x y C2 = subst_constr x y (C1 ⋏ C2).
 Proof.
